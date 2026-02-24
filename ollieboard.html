@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OllieBoard — The Manager Who Never Leaves</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --gold: #F0C040;
+  --purple: #9B5DE5;
+  --bg: #080810;
+  --bg2: #0D0D1A;
+  --text: #E8E4D8;
+  --muted: rgba(232,228,216,0.52);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300;
+  overflow-x: hidden;
+}
+
+/* grain */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/></filter><rect width='300' height='300' filter='url(%23f)' opacity='.04'/></svg>");
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 500;
+  padding: 1.4rem 6vw;
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(180deg, rgba(8,8,16,.96) 0%, transparent 100%);
+  backdrop-filter: blur(8px);
+}
+.logo { font-family:'Bebas Neue',sans-serif; font-size:1.5rem; letter-spacing:.08em; color:var(--text); text-decoration:none; }
+.logo em { font-style:normal; color:var(--gold); }
+.nav-btn {
+  background:var(--gold); color:#080810;
+  font-family:'DM Sans',sans-serif; font-weight:500; font-size:.75rem; letter-spacing:.12em; text-transform:uppercase;
+  padding:.65rem 1.5rem; text-decoration:none;
+  clip-path: polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%);
+  transition: background .2s;
+}
+.nav-btn:hover { background:#fff; }
+
+/* ── HERO ── */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 16vh 10vw 10vh;
+  position: relative; overflow: hidden;
+}
+.hero-bg {
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 90% 70% at 68% 52%, rgba(155,93,229,.14) 0%, transparent 68%),
+    radial-gradient(ellipse 40% 40% at 12% 82%, rgba(240,192,64,.07) 0%, transparent 60%),
+    var(--bg);
+}
+.hero-grid {
+  position:absolute; inset:0;
+  background-image:
+    linear-gradient(rgba(155,93,229,.05) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(155,93,229,.05) 1px,transparent 1px);
+  background-size:60px 60px;
+  mask-image: radial-gradient(ellipse 85% 85% at 65% 50%,black 15%,transparent 72%);
+}
+.ring {
+  position:absolute; border-radius:50%; border:1px solid;
+  pointer-events:none;
+  animation: rpulse 4.5s ease-in-out infinite;
+}
+@keyframes rpulse { 0%,100%{opacity:.06;transform:scale(1)} 50%{opacity:.15;transform:scale(1.025)} }
+
+.hero>*:not(.hero-bg):not(.hero-grid):not(.ring):not(.ollie-wrap) { position:relative; z-index:3; }
+
+.eyebrow {
+  font-size:.7rem; letter-spacing:.28em; text-transform:uppercase; color:var(--gold);
+  margin-bottom:1.8rem;
+  animation: up .8s ease .15s both;
+}
+.hero h1 {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(4rem,11vw,12rem);
+  line-height:.88; letter-spacing:.02em;
+  margin-bottom:2rem;
+  animation: up .9s ease .3s both;
+}
+.hero h1 em { font-style:normal; color:var(--gold); display:block; }
+.hero-sub {
+  font-family:'Instrument Serif',serif; font-style:italic;
+  font-size:clamp(1.1rem,2.1vw,1.6rem); color:var(--muted);
+  max-width:560px; line-height:1.55; margin-bottom:3rem;
+  animation: up .9s ease .45s both;
+}
+.hero-btns {
+  display:flex; gap:1rem; flex-wrap:wrap;
+  animation: up .9s ease .6s both;
+}
+@keyframes up { from{opacity:0;transform:translateY(26px)} to{opacity:1;transform:none} }
+
+/* ── BUTTONS ── */
+.btn {
+  font-family:'DM Sans',sans-serif; font-weight:500; font-size:.82rem;
+  letter-spacing:.1em; text-transform:uppercase;
+  padding:1rem 2.2rem; text-decoration:none; display:inline-block;
+  transition: all .2s; cursor:pointer; border:none;
+}
+.btn-gold {
+  background:var(--gold); color:#080810;
+  clip-path: polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,0 100%);
+}
+.btn-gold:hover { background:#fff; transform:translateY(-2px); }
+.btn-outline {
+  background:transparent; color:var(--text);
+  border:1px solid rgba(232,228,216,.2);
+}
+.btn-outline:hover { border-color:var(--gold); color:var(--gold); }
+
+/* ── SECTIONS ── */
+section { padding:8vw 10vw; }
+.bg2 { background:var(--bg2); }
+hr.rule { border:none; height:1px; background:linear-gradient(90deg,transparent,rgba(155,93,229,.28),transparent); }
+
+.tag { display:block; font-size:.66rem; letter-spacing:.28em; text-transform:uppercase; color:var(--purple); margin-bottom:1.1rem; }
+.sh2 { font-family:'Bebas Neue',sans-serif; font-size:clamp(2.8rem,5.5vw,6rem); line-height:1; margin-bottom:.9rem; }
+.sint { font-family:'Instrument Serif',serif; font-style:italic; font-size:clamp(1rem,1.7vw,1.38rem); color:var(--muted); max-width:580px; line-height:1.6; margin-bottom:3.5rem; }
+
+/* reveal — visible by default, animates in if JS works */
+.rv { opacity:1; transform:none; transition:opacity .65s ease, transform .65s ease; }
+.rv.hidden { opacity:0; transform:translateY(18px); }
+
+/* ── PROBLEM ── */
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:7vw; align-items:start; }
+.prose p { font-size:1rem; line-height:1.78; color:var(--muted); margin-bottom:1.1rem; }
+
+.pcards { display:flex; flex-direction:column; gap:2px; }
+.pc {
+  background:rgba(255,255,255,.025);
+  border:1px solid rgba(155,93,229,.18); border-left:3px solid var(--purple);
+  padding:1.7rem 2rem; position:relative; overflow:hidden;
+  transition:background .25s;
+}
+.pc:hover { background:rgba(155,93,229,.08); }
+.pc-n { font-family:'Bebas Neue',sans-serif; font-size:3.2rem; color:rgba(240,192,64,.1); position:absolute; right:1.1rem; top:.4rem; line-height:1; }
+.pc h3 { font-weight:500; font-size:.88rem; letter-spacing:.06em; text-transform:uppercase; margin-bottom:.35rem; }
+.pc p { font-size:.87rem; color:var(--muted); line-height:1.6; }
+
+/* ── HOW ── */
+.three { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:rgba(155,93,229,.18); }
+.hc { background:var(--bg); padding:2.8rem 2.4rem; transition:background .3s; }
+.hc:hover { background:rgba(155,93,229,.07); }
+.hc-n { font-family:'Bebas Neue',sans-serif; font-size:4.5rem; color:rgba(240,192,64,.08); line-height:1; margin-bottom:-.4rem; }
+.badge { display:inline-block; font-size:.6rem; letter-spacing:.2em; text-transform:uppercase; color:var(--gold); border:1px solid rgba(240,192,64,.25); padding:.25rem .6rem; margin-bottom:.9rem; }
+.hc h3 { font-family:'Bebas Neue',sans-serif; font-size:1.9rem; line-height:1.1; margin-bottom:.75rem; }
+.hc p { font-size:.88rem; line-height:1.7; color:var(--muted); }
+.when { display:block; margin-top:1.6rem; font-size:.63rem; letter-spacing:.15em; text-transform:uppercase; color:var(--purple); }
+
+/* ── VALUE ── */
+.four { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:rgba(240,192,64,.1); margin-bottom:2.8rem; }
+.vc { background:var(--bg2); padding:2.3rem 1.8rem; transition:background .25s; }
+.vc:hover { background:rgba(240,192,64,.05); }
+.vc-amt { font-family:'Bebas Neue',sans-serif; font-size:2.7rem; color:var(--gold); line-height:1; margin-bottom:.45rem; }
+.vc-lbl { font-size:.8rem; color:var(--muted); line-height:1.5; }
+
+.vtotal { display:flex; align-items:center; gap:4rem; flex-wrap:wrap; border-top:1px solid rgba(240,192,64,.18); padding-top:2.5rem; }
+.vtotal-big { font-family:'Bebas Neue',sans-serif; font-size:clamp(3.5rem,6.5vw,7rem); line-height:1; color:var(--gold); }
+.vtotal-lbl { font-size:.63rem; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); margin-bottom:.15rem; }
+.vmeta { display:flex; flex-direction:column; gap:.75rem; }
+.vmi span { font-size:.63rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); display:block; }
+.vmi strong { font-family:'Bebas Neue',sans-serif; font-size:1.9rem; color:var(--text); line-height:1; }
+.vnote { margin-left:auto; font-family:'Instrument Serif',serif; font-style:italic; font-size:.97rem; color:var(--muted); max-width:220px; line-height:1.55; }
+
+/* ── PROOF ── */
+.proof-border { border-top:1px solid rgba(240,192,64,.13); border-bottom:1px solid rgba(240,192,64,.13); }
+.proof-grid { display:grid; grid-template-columns:1fr 1px 1fr; align-items:stretch; }
+.proof-line { background:rgba(240,192,64,.14); }
+.pitem { padding:4rem 5rem; display:flex; flex-direction:column; justify-content:center; }
+.pitem.warm { background:rgba(240,192,64,.025); }
+.quote {
+  font-family:'Instrument Serif',serif; font-style:italic;
+  font-size:clamp(1.05rem,1.7vw,1.4rem); color:var(--text); line-height:1.58; margin-bottom:1.7rem;
+}
+.quote::before { content:'\201C'; font-family:'Bebas Neue',sans-serif; font-size:3.5rem; color:var(--gold); opacity:.22; display:block; line-height:1; margin-bottom:-.4rem; }
+.q-who { font-weight:500; font-size:.8rem; letter-spacing:.08em; text-transform:uppercase; margin-bottom:.2rem; }
+.q-biz { font-size:.73rem; color:var(--gold); letter-spacing:.05em; line-height:1.5; }
+
+/* ── WHO ── */
+.who3 { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:rgba(155,93,229,.14); }
+.wc { background:var(--bg); padding:2.6rem 2.3rem; transition:background .25s; }
+.wc:hover { background:rgba(155,93,229,.06); }
+.wc-icon { font-family:'Bebas Neue',sans-serif; font-size:2.8rem; color:var(--gold); opacity:.42; margin-bottom:.9rem; line-height:1; }
+.wc h3 { font-weight:500; font-size:.95rem; letter-spacing:.05em; margin-bottom:.55rem; }
+.wc p { font-size:.86rem; color:var(--muted); line-height:1.65; }
+
+/* ── CTA ── */
+.ctasec { text-align:center; padding:10vw; position:relative; overflow:hidden; }
+.ctasec::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse 65% 65% at 50% 50%,rgba(155,93,229,.12),transparent 70%); }
+.ctasec>* { position:relative; z-index:2; }
+.ctasec h2 { font-family:'Bebas Neue',sans-serif; font-size:clamp(3rem,7.5vw,9rem); line-height:.93; margin-bottom:1.5rem; }
+.ctasec h2 em { font-style:normal; color:var(--gold); display:block; }
+.ctasec p { font-family:'Instrument Serif',serif; font-style:italic; font-size:clamp(1rem,1.7vw,1.38rem); color:var(--muted); max-width:490px; margin:0 auto 2.8rem; line-height:1.6; }
+.cta-sub { display:block; margin-top:1.4rem; font-size:.73rem; color:var(--muted); }
+.cta-sub a { color:var(--gold); text-decoration:none; }
+
+/* ── FOOTER ── */
+footer { border-top:1px solid rgba(232,228,216,.07); padding:2.5rem 10vw; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; }
+footer p { font-size:.73rem; color:rgba(232,228,216,.28); }
+footer a { color:var(--gold); text-decoration:none; }
+.flogo { font-family:'Bebas Neue',sans-serif; font-size:1.2rem; letter-spacing:.08em; color:var(--text); text-decoration:none; }
+.flogo em { font-style:normal; color:var(--gold); }
+
+/* ── OLLIE HOLOGRAM ── */
+.ollie-wrap {
+  position: absolute;
+  right: 3vw;
+  top: 50%;
+  transform: translateY(-50%);
+  width: clamp(400px, 44vw, 700px);
+  height: clamp(400px, 80vh, 800px);
+  z-index: 1;
+  pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+}
+.ollie-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center center;
+  filter:
+    drop-shadow(0 0 20px rgba(155,93,229,.9))
+    drop-shadow(0 0 80px rgba(155,93,229,.4))
+    drop-shadow(0 0 4px rgba(255,255,255,.15));
+  opacity: 0.92;
+  animation: holo-flicker 7s ease-in-out infinite;
+}
+/* scan lines overlay */
+.ollie-scanlines {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(155,93,229,.05) 3px,
+    rgba(155,93,229,.05) 4px
+  );
+}
+/* fade only the bottom edge so it blends into the section below */
+.ollie-fade {
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  background:
+    linear-gradient(to top, var(--bg) 0%, transparent 18%);
+}
+@keyframes holo-flicker {
+  0%,89%,91%,96%,100% { opacity:.92; }
+  90% { opacity:.5; filter: drop-shadow(0 0 30px rgba(155,93,229,1)) drop-shadow(0 0 6px rgba(255,255,255,.4)) brightness(1.4); }
+  97% { opacity:.65; filter: drop-shadow(0 0 25px rgba(155,93,229,.9)) brightness(1.2); }
+}
+@media(max-width:768px){ .ollie-wrap { width:70vw; opacity:.28; right:50%; transform:translate(50%,-50%); } }
+@media(max-width:960px){
+  .two-col,.proof-grid{grid-template-columns:1fr;}
+  .three,.who3{grid-template-columns:1fr;}
+  .four{grid-template-columns:repeat(2,1fr);}
+  .proof-line{display:none;}
+  .pitem{padding:2.5rem 2rem;}
+  .vnote{margin-left:0;}
+}
+@media(max-width:600px){
+  section{padding:14vw 6vw;}
+  nav{padding:1rem 6vw;}
+  .four{grid-template-columns:1fr 1fr;}
+  .ctasec{padding:14vw 6vw;}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="logo">Ollie<em>Board</em></a>
+  <a href="https://ollieboard.com" target="_blank" class="nav-btn">Book Demo</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-grid"></div>
+  <div class="ring" style="width:680px;height:680px;right:-210px;top:-170px;border-color:rgba(155,93,229,.55);animation-delay:0s;"></div>
+  <div class="ring" style="width:360px;height:360px;right:-30px;top:70px;border-color:rgba(240,192,64,.38);animation-delay:2s;"></div>
+
+  <div class="ollie-wrap">
+    <img src="ollie_final_perfect.png" alt="Ollie" class="ollie-img">
+    <div class="ollie-scanlines"></div>
+    <div class="ollie-fade"></div>
+  </div>
+
+  <span class="eyebrow">AI Management is Here</span>
+  <h1>The Manager<br><em>Who Never Leaves.</em></h1>
+  <p class="hero-sub">Ollie is an AI shift lead that orients your crew, holds the standard on every shift, and knows exactly where every employee stands — across every store — right now.</p>
+  <div class="hero-btns">
+    <a href="https://ollieboard.com" target="_blank" class="btn btn-gold">Hire Ollie &rarr;</a>
+    <button onclick="document.getElementById('how').scrollIntoView({behavior:'smooth'});document.getElementById('how').classList.remove('hidden');document.getElementById('how').querySelectorAll('.rv').forEach(c=>c.classList.remove('hidden'));" class="btn btn-outline">See How It Works ↓</button>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- PROBLEM -->
+<section class="bg2 rv">
+  <div class="two-col">
+    <div class="prose">
+      <span class="tag">Sound Familiar?</span>
+      <h2 class="sh2">Your Manager Can't Be Everywhere.</h2>
+      <p>A new hire walks in on a Friday rush. Your manager is on the phone, covering a callout, keeping the make line moving. Nobody has time to properly bring them up to speed.</p>
+      <p>The standards exist. The materials exist. What doesn't exist is the person to deliver them — patiently, consistently, to every hire, at every station, on every shift.</p>
+      <p>So new employees figure it out on their own, or they don't. The loop keeps running. Until now.</p>
+    </div>
+    <div class="pcards">
+      <div class="pc">
+        <div class="pc-n">90%</div>
+        <h3>Never Properly Skilled</h3>
+        <p>Most new hires leave their first week without mastering their role — not because they can't, but because nobody had time to show them.</p>
+      </div>
+      <div class="pc">
+        <div class="pc-n">1:5</div>
+        <h3>One Manager, Five Fires</h3>
+        <p>Training, callouts, quality checks, scheduling, and customers all land on the same person. Something always loses.</p>
+      </div>
+      <div class="pc">
+        <div class="pc-n">↺</div>
+        <h3>Turnover Compounds It</h3>
+        <p>High churn means constant re-training — an impossible loop when your trainer is already underwater every shift.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- STATEMENT -->
+<section style="padding:7vw 10vw;text-align:center;position:relative;overflow:hidden;">
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse 60% 60% at 50% 50%,rgba(240,192,64,.06),transparent 70%);"></div>
+  <p style="position:relative;z-index:2;font-family:'Bebas Neue',sans-serif;font-size:clamp(1.8rem,4vw,3.8rem);line-height:1.1;letter-spacing:.02em;color:var(--text);max-width:900px;margin:0 auto;">
+    Ollie isn't software that helps your manager.<br>
+    <span style="color:var(--gold);">Ollie is the manager.</span>
+  </p>
+  <p style="position:relative;z-index:2;font-family:'Instrument Serif',serif;font-style:italic;font-size:clamp(1rem,1.6vw,1.3rem);color:var(--muted);max-width:620px;margin:1.8rem auto 0;line-height:1.6;">
+    Voice-coached. Chat-ready. Spatially aware. The right guidance, delivered at the right moment, at the right station — present on every shift, across every store, starting today.
+  </p>
+</section>
+
+<hr class="rule">
+
+<!-- HOW IT WORKS — THE GOLD PATH -->
+<section id="how">
+  <span class="tag">The Gold Path</span>
+  <h2 class="sh2">The Path Every<br><em style="font-style:normal;color:var(--gold);">Hire Takes.</em></h2>
+  <p class="sint">Crew step in, check in with Ollie by voice or chat, and get coached through exactly what they need — exactly where they are. No hovering. No ordering around. Just the manager everyone always wished they'd had. With every operational concern handled, your crew has one job: make great food and take care of the customer in front of them.</p>
+
+  <div class="three">
+    <div class="hc rv">
+      <div class="hc-n">01</div>
+      <span class="badge">Day 1–7</span>
+      <h3>New Hire Orientation</h3>
+      <p>Ollie delivers an orientation experience that genuinely impresses — a guided store tour through every station, role, and standard, led by voice coaching and rich learning modules. Not a packet to read on a bench. A first day that earns trust and builds confidence from the start. Imagine what it would mean if the very first shift transformed how a new hire felt about working at your store. That transformation starts today. From lost to ready in 16 hours — without your manager leaving the floor.</p>
+      <span class="when">↳ Every hire. Every station. Every time.</span>
+    </div>
+    <div class="hc rv">
+      <div class="hc-n">02</div>
+      <span class="badge">Every Shift</span>
+      <h3>Live Operations Assessment</h3>
+      <p>Using your existing cameras and printer-placed markers — enhanced by any other sensors already in your store — Ollie scores your operations continuously, in real time. Compatible with more than 5,000 devices. A live numerical score across every location at once. Risks surfaced before they become findings. Your store knows exactly where it stands, right now — not when the auditor shows up.</p>
+      <span class="when">↳ Your score. Every store. Right now.</span>
+    </div>
+    <div class="hc rv">
+      <div class="hc-n">03</div>
+      <span class="badge">Opening &amp; Closing</span>
+      <h3>Opening &amp; Closing Procedures</h3>
+      <p>Opening is about getting the store to the Gold Standard before the first customer walks in — Ollie coaches your crew through every check, every temp, every task until you're truly ready. Closing is about setting up the morning crew for a rolling start — leaving nothing unfinished, nothing ambiguous. Your store runs remarkably consistently whether your GM is there or not.</p>
+      <span class="when">↳ Gold Standard open. Flying-start close.</span>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- OPERATOR INTELLIGENCE -->
+<section style="padding:8vw 10vw;background:var(--bg2);">
+  <span class="tag">For the Operator</span>
+  <h2 class="sh2">Ollie Runs the Store.<br><em style="font-style:normal;color:var(--gold);">You Run the Business.</em></h2>
+  <p class="sint">Ollie holds the full picture of your store — available by voice or chat, knowing everything happening in real time, so you never have to choose between being on the floor and being in the know.</p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(155,93,229,.18);">
+    <div class="hc rv" style="background:var(--bg);">
+      <span class="badge">Voice &amp; Chat</span>
+      <h3>Always Available.<br>However You Need.</h3>
+      <p>Ollie is available by voice and by chat — whichever feels natural in the moment. Crew can speak to Ollie hands-free on the floor, or fire off a quick message between tasks. Managers can check in from the office, from home, or from their car on the way in. The same presence, the same answers, the same standards — in any format, at any time of day.</p>
+      <span class="when">↳ Voice on the floor. Chat anywhere. Always on.</span>
+    </div>
+    <div class="hc rv" style="background:var(--bg);">
+      <span class="badge">Your Store Intelligence</span>
+      <h3>Ollie Knows<br>Your Store.</h3>
+      <p>Ollie is the most informed person in the building — and it's available right now. Ask about today's sales, current inventory levels, which station is running behind, or what your electricity costs look like this week. Dig into a cross-location analysis. Ollie surfaces exactly what you need, in plain language, the moment you ask — by voice or by chat.</p>
+      <span class="when">↳ Sales. Inventory. Energy. Insights. Just ask.</span>
+    </div>
+  </div>
+
+  <div style="margin-top:1px;background:rgba(240,192,64,.03);border:1px solid rgba(240,192,64,.1);padding:2.2rem 2.5rem;display:flex;align-items:center;gap:2rem;flex-wrap:wrap;">
+    <div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.05rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">The Bottom Line</div>
+      <p style="font-family:'Instrument Serif',serif;font-style:italic;font-size:clamp(.95rem,1.5vw,1.2rem);color:var(--muted);line-height:1.6;max-width:680px;">When your crew isn't worried about what comes next, they make better food. Better food means better reviews, higher sales, and customers who come back. Ollie clears the floor of every other concern — so your team can be completely present for the customer in front of them.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- VALUE -->
+<section class="bg2 rv">
+  <span class="tag">The Business Case</span>
+  <h2 class="sh2">$60,000 in Value.<br>Per Store. Per Year.</h2>
+  <p class="sint">A shift lead costs around $38,000 a year. Ollie costs $3,600. Ollie never calls out, never quits, and is already running the moment you need it.</p>
+
+  <div class="four">
+    <div class="vc rv">
+      <div class="vc-amt">$38,000</div>
+      <div class="vc-lbl">What you stop paying when your next shift lead position stays open — because Ollie fills it</div>
+    </div>
+    <div class="vc rv">
+      <div class="vc-amt">$7,400</div>
+      <div class="vc-lbl">Manager time recaptured from orientation and returned to the floor where it belongs</div>
+    </div>
+    <div class="vc rv">
+      <div class="vc-amt">$5,500</div>
+      <div class="vc-lbl">Smarter crew scheduling — Ollie calls in who you need, using live maps and a new way to surface available employees</div>
+    </div>
+    <div class="vc rv">
+      <div class="vc-amt">$4,500</div>
+      <div class="vc-lbl">Lower rehire and re-onboarding costs as crew ramp faster and stay longer</div>
+    </div>
+  </div>
+
+  <div class="vtotal rv">
+    <div>
+      <div class="vtotal-lbl">Total Annual Value per Store</div>
+      <div class="vtotal-big">$60K</div>
+    </div>
+    <div class="vmeta">
+      <div class="vmi"><span>Annual Cost</span><strong>$3,600</strong></div>
+      <div class="vmi"><span>Return</span><strong>16.7&times;</strong></div>
+    </div>
+    <p class="vnote">Pricing is introductory. Value starts on day one.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- PROOF -->
+<section class="rv" style="background:var(--bg2);border-top:1px solid rgba(240,192,64,.13);border-bottom:1px solid rgba(240,192,64,.13);padding:7vw 10vw;">
+  <span class="tag" style="text-align:center;display:block;margin-bottom:1rem;">Ready to Deploy</span>
+  <h2 class="sh2" style="text-align:center;margin-bottom:.6rem;">Certified to Run a<br><span style="color:var(--gold);">Domino's Store.</span></h2>
+  <p style="font-family:'Instrument Serif',serif;font-style:italic;font-size:clamp(1rem,1.6vw,1.3rem);color:var(--muted);text-align:center;max-width:660px;margin:0 auto 4rem;line-height:1.6;">Ollie has been built and validated against Domino's actual roles, procedures, and brand standards. Official job aids and instructional videos from leading franchise partners — available via voice or chat, wherever your crew is standing. The Domino's shift lead is live. More brands are coming.</p>
+
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:rgba(240,192,64,.12);">
+    <div style="background:var(--bg2);padding:2.5rem 2rem;border-top:2px solid var(--gold);">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:.12em;color:var(--gold);margin-bottom:1rem;">Make Line</div>
+      <p style="font-size:.87rem;color:var(--muted);line-height:1.65;">Coaches crew through product specs — sauce, dough, toppings, cut, box. Every step, voiced aloud, in the exact sequence the Gold Standard requires.</p>
+    </div>
+    <div style="background:var(--bg2);padding:2.5rem 2rem;border-top:2px solid var(--gold);">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:.12em;color:var(--gold);margin-bottom:1rem;">Prep &amp; Dough</div>
+      <p style="font-size:.87rem;color:var(--muted);line-height:1.65;">Manages the full dough cycle — proofing, staging, inventory counts. The prep work that keeps the store running on time is Ollie's job now.</p>
+    </div>
+    <div style="background:var(--bg2);padding:2.5rem 2rem;border-top:2px solid var(--gold);">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:.12em;color:var(--gold);margin-bottom:1rem;">OA Assessment</div>
+      <p style="font-size:.87rem;color:var(--muted);line-height:1.65;">Live performance scoring across every location at once. Your store always knows where it stands — before the auditor arrives, not after.</p>
+    </div>
+    <div style="background:var(--bg2);padding:2.5rem 2rem;border-top:2px solid rgba(240,192,64,.3);">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:.12em;color:var(--gold);margin-bottom:1rem;">Opening Procedures</div>
+      <p style="font-size:.87rem;color:var(--muted);line-height:1.65;">Coaches every open — equipment checks, temperature logs, inventory — via voice, every morning, whether the GM is in or not.</p>
+    </div>
+    <div style="background:var(--bg2);padding:2.5rem 2rem;border-top:2px solid rgba(240,192,64,.3);">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:.12em;color:var(--gold);margin-bottom:1rem;">Closing Procedures</div>
+      <p style="font-size:.87rem;color:var(--muted);line-height:1.65;">End-of-night procedures, cleaning standards, safe close — guided by voice, step by step. The store closes right every night.</p>
+    </div>
+    <div style="background:var(--bg2);padding:2.5rem 2rem;border-top:2px solid rgba(240,192,64,.3);">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:.12em;color:var(--gold);margin-bottom:1rem;">Official Job Aids</div>
+      <p style="font-size:.87rem;color:var(--muted);line-height:1.65;">The most important job aids and instructional videos from leading franchise partners — surfaced by voice or chat at exactly the moment they're needed.</p>
+    </div>
+  </div>
+
+  <div style="margin-top:2px;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(155,93,229,.15);">
+    <div style="background:rgba(240,192,64,.04);border:1px solid rgba(240,192,64,.15);padding:2rem 2.5rem;display:flex;align-items:center;gap:1.5rem;">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.05rem;letter-spacing:.08em;color:var(--gold);margin-bottom:.4rem;">Currently Live</div>
+        <p style="font-size:.85rem;color:var(--muted);line-height:1.6;">Ollie is actively running at Domino's franchise locations. The playbook is built. The standards are loaded.</p>
+      </div>
+    </div>
+    <div style="background:rgba(155,93,229,.04);border:1px solid rgba(155,93,229,.18);padding:2rem 2.5rem;display:flex;align-items:center;gap:1.5rem;">
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.05rem;letter-spacing:.08em;color:var(--purple);margin-bottom:.4rem;">Coming Next</div>
+        <p style="font-size:.85rem;color:var(--muted);line-height:1.6;">Ollie is being built out for additional QSR brands. If you're not on Domino's yet, your shift lead is on the way.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:1px;background:rgba(240,192,64,.025);border:1px solid rgba(240,192,64,.1);padding:1.8rem 2.5rem;text-align:center;">
+    <a href="https://ollieboard.com" target="_blank" class="btn btn-gold">Get Your Brand's Shift Lead &rarr;</a>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- WHO -->
+<section class="rv">
+  <span class="tag">Built for Operators Like You</span>
+  <h2 class="sh2">Stop Hiring Your<br>Way to Scale.</h2>
+  <p class="sint">Ollie gets stores running remarkably consistently — your next location comes with a shift lead already in place, and your existing crew has the manager they always deserved.</p>
+
+  <div class="who3">
+    <div class="wc rv">
+      <div class="wc-icon">3&ndash;5</div>
+      <h3>You're Adding Stores</h3>
+      <p>Every new location used to mean recruiting, orienting, and hoping a shift lead sticks. With Ollie, your next store opens with a manager already there — before the first crew member walks in the door.</p>
+    </div>
+    <div class="wc rv">
+      <div class="wc-icon">10+</div>
+      <h3>You're Running Thin</h3>
+      <p>You have great standards and not enough people to hold them everywhere at once. Ollie is the shift lead who shows up at every store, every shift — consistent, present, never burnt out.</p>
+    </div>
+    <div class="wc rv">
+      <div class="wc-icon">&#8593;&#8593;</div>
+      <h3>You're Building Something Bigger</h3>
+      <p>The operators who scale past 20, 30, 50 stores aren't the ones who hire better — they're the ones who stop needing a manager at every door. That capability exists now. That's Ollie.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- CTA -->
+<section class="ctasec rv" id="contact">
+  <span class="tag" style="text-align:center;display:block;margin-bottom:1.4rem;">The Future Is Running.</span>
+  <h2>The Manager<br><em>Who Never Leaves.</em></h2>
+  <p>Ollie is live. See it in action — in a real store, with a real crew, running right now.</p>
+  <a href="https://ollieboard.com" target="_blank" class="btn btn-gold">Hire Ollie &rarr;</a>
+  <span class="cta-sub">Or reach us directly at <a href="&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#100;&#101;&#109;&#111;&#64;&#111;&#108;&#108;&#105;&#101;&#98;&#111;&#97;&#114;&#100;&#46;&#99;&#111;&#109;">demo&#64;ollieboard.com</a></span>
+</section>
+
+<footer>
+  <div>
+    <a href="#" class="flogo">Ollie<em>Board</em></a>
+    <p style="margin-top:.4rem;">The AI Manager for QSR Franchisees</p>
+  </div>
+  <p>&copy; 2026 OllieBoard Inc. &middot; <a href="&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#100;&#101;&#109;&#111;&#64;&#111;&#108;&#108;&#105;&#101;&#98;&#111;&#97;&#114;&#100;&#46;&#99;&#111;&#109;">demo&#64;ollieboard.com</a></p>
+</footer>
+
+<script>
+const items = document.querySelectorAll('.rv');
+if ('IntersectionObserver' in window) {
+  items.forEach(el => { if (!el.closest('.hero')) el.classList.add('hidden'); });
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.remove('hidden');
+        e.target.querySelectorAll(':scope > .rv, :scope > * > .rv').forEach((c, i) => {
+          setTimeout(() => c.classList.remove('hidden'), i * 100);
+        });
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.01, rootMargin: '0px 0px 0px 0px' });
+  items.forEach(el => { if (!el.closest('.hero')) obs.observe(el); });
+}
+
+// When any anchor link is clicked, immediately reveal the target section
+document.querySelectorAll('a[href^="#"]').forEach(link => {
+  link.addEventListener('click', () => {
+    const id = link.getAttribute('href').slice(1);
+    const target = document.getElementById(id);
+    if (target) {
+      target.classList.remove('hidden');
+      target.querySelectorAll('.rv').forEach(c => c.classList.remove('hidden'));
+    }
+  });
+});
+</script>
+</body>
+</html>
