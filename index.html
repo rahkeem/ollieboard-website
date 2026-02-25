@@ -252,10 +252,6 @@ footer a { color:var(--gold); text-decoration:none; }
   height: 100%;
   object-fit: contain;
   object-position: top right;
-  filter:
-    drop-shadow(0 0 20px rgba(155,93,229,.9))
-    drop-shadow(0 0 80px rgba(155,93,229,.4))
-    drop-shadow(0 0 4px rgba(255,255,255,.15));
   opacity: 0.92;
   animation: holo-flicker 7s ease-in-out infinite;
 }
@@ -270,15 +266,17 @@ footer a { color:var(--gold); text-decoration:none; }
     rgba(155,93,229,.05) 4px
   );
 }
-/* fade bottom edge only */
+/* fade top and bottom edges */
 .ollie-fade {
   position: absolute; inset: 0; z-index: 3; pointer-events: none;
-  background: linear-gradient(to top, var(--bg) 0%, transparent 15%);
+  background:
+    linear-gradient(to bottom, var(--bg) 0%, transparent 14%),
+    linear-gradient(to top, var(--bg) 0%, transparent 12%);
 }
 @keyframes holo-flicker {
   0%,89%,91%,96%,100% { opacity:.92; }
-  90% { opacity:.5; filter: drop-shadow(0 0 30px rgba(155,93,229,1)) drop-shadow(0 0 6px rgba(255,255,255,.4)) brightness(1.4); }
-  97% { opacity:.65; filter: drop-shadow(0 0 25px rgba(155,93,229,.9)) brightness(1.2); }
+  90% { opacity:.55; }
+  97% { opacity:.7; }
 }
 
 @media(max-width:768px){
