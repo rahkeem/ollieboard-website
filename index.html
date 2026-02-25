@@ -90,7 +90,6 @@ nav {
     linear-gradient(rgba(155,93,229,.05) 1px,transparent 1px),
     linear-gradient(90deg,rgba(155,93,229,.05) 1px,transparent 1px);
   background-size:60px 60px;
-  mask-image: radial-gradient(ellipse 85% 85% at 65% 50%,black 15%,transparent 72%);
   pointer-events: none;
 }
 .ring {
@@ -324,7 +323,7 @@ footer a { color:var(--gold); text-decoration:none; }
 <!-- NAV -->
 <nav>
   <a href="#" class="logo">Ollie<em>Board</em></a>
-  <a href="https://ollieboard.com" target="_blank" class="nav-btn">Book Demo</a>
+  <a href="https://calendar.app.google/XyNKCkgZzPGSKN3J9" target="_blank" class="nav-btn">Book Demo</a>
 </nav>
 
 <!-- HERO -->
@@ -335,7 +334,19 @@ footer a { color:var(--gold); text-decoration:none; }
   <div class="ring" style="width:360px;height:360px;right:-30px;top:70px;border-color:rgba(240,192,64,.38);animation-delay:2s;"></div>
 
   <div class="ollie-wrap">
-    <img src="ollie_final_perfect.png" alt="Ollie" class="ollie-img">
+    <img id="ollie-img" src="ollie_final_web.png" alt="Ollie" class="ollie-img">
+    <script>
+      (function(){
+        var isMobile = window.innerWidth <= 768;
+        var img = document.getElementById('ollie-img');
+        if (isMobile) {
+          var mobileImg = new Image();
+          mobileImg.onload = function(){ img.src = 'ollie_final_mobile.png'; };
+          mobileImg.onerror = function(){ /* keep web version */ };
+          mobileImg.src = 'ollie_final_mobile.png';
+        }
+      })();
+    </script>
     <div class="ollie-scanlines"></div>
     <div class="ollie-fade"></div>
   </div>
@@ -344,7 +355,7 @@ footer a { color:var(--gold); text-decoration:none; }
   <h1>The Manager<br><em>Who Never Leaves.</em></h1>
   <p class="hero-sub">Ollie is an AI shift lead that orients your crew, holds the standard on every shift, and knows exactly where every employee stands — across every store — right now.</p>
   <div class="hero-btns">
-    <a href="https://ollieboard.com" target="_blank" class="btn btn-gold">Hire Ollie &rarr;</a>
+    <a href="https://calendar.app.google/XyNKCkgZzPGSKN3J9" target="_blank" class="btn btn-gold">Hire Ollie &rarr;</a>
     <button onclick="document.getElementById('how').scrollIntoView({behavior:'smooth'});document.getElementById('how').classList.remove('hidden');document.getElementById('how').querySelectorAll('.rv').forEach(c=>c.classList.remove('hidden'));" class="btn btn-outline">See How It Works ↓</button>
   </div>
 </section>
@@ -550,7 +561,7 @@ footer a { color:var(--gold); text-decoration:none; }
   </div>
 
   <div style="margin-top:1px;background:rgba(240,192,64,.025);border:1px solid rgba(240,192,64,.1);padding:1.8rem 2.5rem;text-align:center;">
-    <a href="https://ollieboard.com" target="_blank" class="btn btn-gold">Get Your Brand's Shift Lead &rarr;</a>
+    <a href="https://calendar.app.google/XyNKCkgZzPGSKN3J9" target="_blank" class="btn btn-gold">Get Your Brand's Shift Lead &rarr;</a>
   </div>
 </section>
 
@@ -588,7 +599,7 @@ footer a { color:var(--gold); text-decoration:none; }
   <span class="tag" style="text-align:center;display:block;margin-bottom:1.4rem;">The Future Is Running.</span>
   <h2>The Manager<br><em>Who Never Leaves.</em></h2>
   <p>Ollie is live. See it in action — in a real store, with a real crew, running right now.</p>
-  <a href="https://ollieboard.com" target="_blank" class="btn btn-gold">Hire Ollie &rarr;</a>
+  <a href="https://calendar.app.google/XyNKCkgZzPGSKN3J9" target="_blank" class="btn btn-gold">Hire Ollie &rarr;</a>
   <span class="cta-sub">Or reach us directly at <a href="&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#100;&#101;&#109;&#111;&#64;&#111;&#108;&#108;&#105;&#101;&#98;&#111;&#97;&#114;&#100;&#46;&#99;&#111;&#109;">demo&#64;ollieboard.com</a></span>
 </section>
 
