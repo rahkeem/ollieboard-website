@@ -2624,22 +2624,137 @@ function flashReelTo(containerId, newValue) {
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   WEB HAPTICS — inlined from github.com/lochie/web-haptics
-   Patterns: buzz, success, error, nudge (from patterns.ts)
-   Uses navigator.vibrate() where supported (mobile devices).
-   Falls back silently on desktop.
+   WEB HAPTICS — faithful vanilla JS port of github.com/lochie/web-haptics
+   
+   The mechanism: a hidden <label> containing <input type="checkbox" switch>
+   Clicking the label toggles the checkbox, which fires iOS native taptics.
+   The library drives patterns by clicking the label at timed intervals
+   using requestAnimationFrame — same approach used here exactly.
+   
+   Patterns from packages/web-haptics/src/lib/web-haptics/patterns.ts
 ════════════════════════════════════════════════════════════════════ */
+
+const TOGGLE_MIN = 16;  /* ms at intensity 1 */
+const TOGGLE_MAX = 184; /* range above min */
+
+/* Build the hidden label + switch checkbox and append to body */
+const _hapticLabel = (() => {
+  const label = document.createElement('label');
+  label.setAttribute('for', 'ollieboard-haptic-switch');
+  label.style.cssText =
+    'position:fixed;display:none;bottom:-999px;left:-999px;' +
+    'width:1px;height:1px;overflow:hidden;pointer-events:none;';
+
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.setAttribute('switch', ''); /* iOS Safari taptic engine trigger */
+  cb.id = 'ollieboard-haptic-switch';
+  cb.style.cssText = 'all:initial;appearance:auto;';
+
+  label.appendChild(cb);
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.appendChild(label);
+  });
+  /* If DOM already ready, append immediately */
+  if (document.readyState !== 'loading') {
+    document.body.appendChild(label);
+  }
+  return label;
+})();
+
+/* Patterns exactly from patterns.ts */
 const HAPTIC_PATTERNS = {
-  buzz:    [1000],                              /* 1000ms continuous */
-  success: [30, 60, 40],                        /* ascending double-tap */
-  error:   [40, 40, 40, 40, 40, 40, 50],       /* three rapid harsh taps */
-  nudge:   [80, 80, 50],                        /* two quick taps with pause */
+  buzz:    { pattern: [{ duration: 1000, intensity: 1 }] },
+  success: { pattern: [
+    { duration: 30,  intensity: 0.5 },
+    { delay: 60, duration: 40, intensity: 1 }
+  ]},
+  error:   { pattern: [
+    { duration: 40, intensity: 0.7 },
+    { delay: 40, duration: 40, intensity: 0.7 },
+    { delay: 40, duration: 40, intensity: 0.9 },
+    { delay: 40, duration: 50, intensity: 0.6 }
+  ]},
+  nudge:   { pattern: [
+    { duration: 80, intensity: 0.8 },
+    { delay: 80, duration: 50, intensity: 0.3 }
+  ]},
 };
 
+/* Active rAF id so we can cancel a running pattern */
+let _hapticRafId = null;
+
+/* Faithful port of runPattern() from index.ts */
 function haptic(name) {
-  if (typeof navigator === 'undefined' || !navigator.vibrate) return;
-  const pattern = HAPTIC_PATTERNS[name];
-  if (pattern) navigator.vibrate(pattern);
+  const preset = HAPTIC_PATTERNS[name];
+  if (!preset) return;
+
+  /* Cancel any running pattern */
+  if (_hapticRafId !== null) {
+    cancelAnimationFrame(_hapticRafId);
+    _hapticRafId = null;
+  }
+
+  const vibrations   = preset.pattern;
+  const defaultIntensity = 0.5;
+
+  /* Build phase boundaries — matches library's runPattern exactly */
+  const phases = [];
+  let cumulative = 0;
+  vibrations.forEach(vib => {
+    const intensity = Math.max(0, Math.min(1, vib.intensity ?? defaultIntensity));
+    const delay = vib.delay ?? 0;
+    if (delay > 0) {
+      cumulative += delay;
+      phases.push({ end: cumulative, isOn: false, intensity: 0 });
+    }
+    cumulative += vib.duration;
+    phases.push({ end: cumulative, isOn: true, intensity });
+  });
+  const totalDuration = cumulative;
+
+  let startTime       = 0;
+  let lastToggleTime  = -1;
+  let firstClickFired = false;
+
+  /* Fire first click synchronously (library does this to stay in gesture ctx) */
+  _hapticLabel.click();
+  firstClickFired = true;
+
+  const loop = (time) => {
+    if (startTime === 0) startTime = time;
+    const elapsed = time - startTime;
+
+    if (elapsed >= totalDuration) {
+      _hapticRafId = null;
+      return;
+    }
+
+    /* Find current phase */
+    let phase = phases[0];
+    for (const p of phases) {
+      if (elapsed < p.end) { phase = p; break; }
+    }
+
+    if (phase && phase.isOn) {
+      const toggleInterval = TOGGLE_MIN + (1 - phase.intensity) * TOGGLE_MAX;
+
+      if (lastToggleTime === -1) {
+        lastToggleTime = time;
+        if (!firstClickFired) {
+          _hapticLabel.click();
+          firstClickFired = true;
+        }
+      } else if (time - lastToggleTime >= toggleInterval) {
+        _hapticLabel.click();
+        lastToggleTime = time;
+      }
+    }
+
+    _hapticRafId = requestAnimationFrame(loop);
+  };
+
+  _hapticRafId = requestAnimationFrame(loop);
 }
 
 /* ── Headcount change badge ──────────────────────────────────────────
