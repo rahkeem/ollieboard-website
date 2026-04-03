@@ -1,0 +1,3000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OllieBoard v4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --gold:       #C9A84C;
+  --gold-light: #F0D080;
+  --gold-dim:   #6A5420;
+  --gold-glow:  rgba(201,168,76,0.25);
+  --surface:    #111111;
+  --surface2:   #1A1A1A;
+  --surface3:   #222222;
+  --text:       #E8D9A0;
+  --text-dim:   #7A6E50;
+  --pass:       #4CAF50;
+  --pending-c:  #FF9800;
+  --panel-w:    360px;
+
+  --c-brown:  #896653; --c-lblue: #c6f4ea; --c-pink:   #a42c74;
+  --c-orange: #e09252; --c-red:   #ed1518; --c-yellow: #fcf81d;
+  --c-green:  #3a9e58; --c-dblue: #0a18a3;
+}
+
+/* ── PAGE LAYOUT ───────────────────────────────────────────────────
+   The entire page is a fixed viewport — no body scrolling.
+   The board always fits on screen.
+──────────────────────────────────────────────────────────────────── */
+html, body {
+  height: 100%; overflow: hidden;
+  background: #050505;
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  display: flex; flex-direction: column;
+  padding: 8px;
+}
+
+/* Score bar — same width calculation as .board so pills never exceed board footprint */
+.score-bar {
+  flex-shrink: 0; display: flex; gap: 8px; margin-top: 8px;
+  align-self: center;
+  width: min(100%, calc(100vh - 80px));
+}
+.score-pill { flex:1; background:var(--surface2); border:1px solid var(--gold-dim); border-radius:6px; padding:8px 12px; display:flex; flex-direction:column; gap:4px; }
+.score-label { font-size:0.72rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim); font-weight:600; }
+.score-value { font-size:clamp(1.3rem,2.5vw,1.9rem); color:var(--gold); line-height:1; font-weight:800; }
+.score-value span { font-size:0.55em; color:var(--text-dim); font-weight:600; }
+.progress-track { height:3px; background:#1e1e1e; border-radius:2px; overflow:hidden; }
+.progress-fill { height:100%; background:linear-gradient(90deg,var(--gold-dim),var(--gold-light)); border-radius:2px; transition:width 0.8s ease; }
+
+/* Board wrapper fills remaining vertical space */
+.board-wrap {
+  flex: 1;
+  min-height: 0; /* allow shrink */
+  position: relative; /* anchor for overlay panel */
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── BOARD ─────────────────────────────────────────────────────────
+   Square, fills the smaller of available width/height.
+──────────────────────────────────────────────────────────────────── */
+.board {
+  display: grid;
+  grid-template-columns: 120px repeat(9, 1fr) 120px;
+  grid-template-rows:    120px repeat(9, 1fr) 120px;
+  /* Fill available space — no title bar above, just score bar below (~56px) */
+  width:  min(100%, calc(100vh - 80px));
+  height: min(100%, calc(100vh - 80px));
+  aspect-ratio: 1 / 1;
+  border: 4px solid var(--gold);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 0 60px var(--gold-glow), inset 0 0 80px rgba(0,0,0,0.6);
+  background: var(--surface);
+}
+
+/* Center cell */
+.center {
+  grid-column: 2/11; grid-row: 2/11;
+  position: relative; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; overflow: hidden;
+}
+.center-grid {
+  position: absolute; inset: 0;
+  /* Thicker grid lines — 2px, more opaque to match real board prominence */
+  background-image: linear-gradient(rgba(201,168,76,0.35) 2px, transparent 2px),
+                    linear-gradient(90deg, rgba(201,168,76,0.35) 2px, transparent 2px);
+  background-size: calc(100%/9) calc(100%/9); pointer-events: none;
+}
+
+/* Center grid cells — thicker border to match surrounding spaces */
+.center-cell {
+  border: 2px solid rgba(201,168,76,0.22);
+  cursor: default;
+  transition: background 0.18s, box-shadow 0.18s;
+}
+.center-cell:hover {
+  background: rgba(201,168,76,0.10);
+  box-shadow: inset 0 0 20px rgba(201,168,76,0.18);
+  z-index: 2;
+}
+  border:3px solid var(--gold); background:rgba(201,168,76,0.05);
+  cursor:default; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:4px;
+  overflow:hidden; transition:background 0.2s;
+  width:100%; height:100%; aspect-ratio:1/1;
+}
+.ob-corner:hover { background:rgba(201,168,76,0.09); }
+.ob-corner .c-icon  { font-size:clamp(1rem,3.5vw,2.2rem); line-height:1; }
+.ob-corner .c-label { font-size:clamp(0.55rem, 1.2vw, 0.82rem);color:var(--gold);font-weight:800;text-align:center;letter-spacing:0.04em;text-transform:uppercase;padding:0 3px; }
+
+/* Space base */
+.space {
+  position:relative; overflow:hidden;
+  background:var(--surface); border:2px solid var(--gold-dim);
+  cursor:pointer; transition:background 0.2s,box-shadow 0.2s,transform 0.1s;
+  container-type: size;
+}
+.space:hover { background:#1c1500; box-shadow:inset 0 0 0 2px rgba(201,168,76,0.5); z-index:2; }
+.space:active { transform:scale(0.97); }
+.space.completed    { background:rgba(201,168,76,0.07); }
+.space.completed:hover { background:#1a1700; }
+.space.active-sel {
+  background:rgba(201,168,76,0.13)!important;
+  box-shadow:inset 0 0 0 3px var(--gold),0 0 18px var(--gold-glow)!important;
+  z-index:5;
+}
+
+/* Center grid cells — addressable as .cell-r{row}-c{col}, gold glow on hover */
+.center-cell {
+  border: 1px solid rgba(201,168,76,0.08);
+  cursor: default;
+  transition: background 0.18s, box-shadow 0.18s;
+}
+.center-cell:hover {
+  background: rgba(201,168,76,0.10);
+  box-shadow: inset 0 0 20px rgba(201,168,76,0.18);
+  z-index: 2;
+}
+
+/* Inner rotation wrapper */
+.inner {
+  position:absolute; display:flex; flex-direction:column;
+  align-items:stretch; overflow:visible; transform-origin:center center;
+}
+
+/* Property space */
+.prop-band {
+  flex-shrink:0; height:24px; position:relative;
+  display:flex; align-items:center; justify-content:center;
+  /* Thick gold border around the color header — matches real Monopoly board */
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,0.35), 0 2px 0 0 var(--gold-dim);
+  border-bottom: 2px solid var(--gold-dim);
+}
+.prop-name {
+  flex:1;
+  display:flex; align-items:flex-start; justify-content:center;
+  text-align:center; font-weight:900; color:var(--text);
+  text-transform:uppercase; line-height:1.25;
+  word-break:break-word; hyphens:auto; white-space:normal;
+  padding:6px 4px 2px;
+  font-size: clamp(0.65rem, 1.7cqw, 1.05rem);
+  overflow: hidden;
+}
+.prop-pts {
+  flex-shrink:0; text-align:center; font-weight:800; color:var(--gold);
+  text-transform:uppercase; letter-spacing:0.06em;
+  padding:2px 0 3px;
+  font-size: clamp(0.55rem, 1.3cqw, 0.85rem);
+  line-height:1;
+}
+/* (star-badge removed — stars now live in footer .prop-stars row) */
+@keyframes starPop {
+  from { transform:scale(0) rotate(-30deg) translate(-50%,-50%); opacity:0; }
+  to   { transform:scale(1) rotate(0) translate(-50%,-50%);       opacity:1; }
+}
+
+/* Plain space — no header, text top-aligned with dynamic size */
+.plain-name {
+  flex:1;
+  display:flex; align-items:flex-start; justify-content:center;
+  text-align:center; font-weight:700; color:var(--text);
+  line-height:1.25; word-break:break-word; hyphens:auto;
+  white-space:normal; text-transform:uppercase;
+  padding:6px 4px 2px;
+  font-size: clamp(0.65rem, 1.7cqw, 1.05rem);
+  overflow:hidden;
+}
+.plain-pts {
+  flex-shrink:0; text-align:center; font-weight:800; color:var(--gold);
+  text-transform:uppercase; letter-spacing:0.06em;
+  padding:2px 0 3px;
+  font-size: clamp(0.55rem, 1.3cqw, 0.85rem);
+  line-height:1; min-height:8px;
+}
+
+/* ── US-04: UNRELEASED SPACE ────────────────────────────────────────
+   Property spaces not yet active show:
+   - Desaturated/dimmed color band (no dots)
+   - Name in muted color
+   - Release date on second line
+   - No stars, no pts
+──────────────────────────────────────────────────────────────────── */
+.space.unreleased { cursor: pointer; }
+.space.unreleased:hover { background: #161010; }
+
+.prop-band-unreleased {
+  flex-shrink: 0; height: 24px; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  border-bottom: 2px solid var(--gold-dim);
+  /* band color set inline but with heavy opacity reduction */
+  opacity: 0.45;
+}
+
+.prop-name-unreleased {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: flex-start; justify-content: flex-start;
+  padding: 6px 4px 2px;
+  overflow: hidden;
+}
+.prop-name-unreleased .pnu-label {
+  font-size: clamp(0.65rem, 1.7cqw, 1.05rem);
+  font-weight: 900; color: var(--text-dim);
+  text-transform: uppercase; line-height: 1.25;
+  word-break: break-word; hyphens: auto;
+  width: 100%; text-align: center;
+}
+.prop-name-unreleased .pnu-date {
+  font-size: clamp(0.42rem, 1cqw, 0.62rem);
+  font-weight: 600; color: var(--gold-dim);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  width: 100%; text-align: center;
+  margin-top: 3px;
+}
+
+/* Side column fix for unreleased text */
+.ob-side .prop-name-unreleased .pnu-label,
+.ob-side .prop-name-unreleased .pnu-date { writing-mode: horizontal-tb; }
+
+/* ── US-06: MAYOR TILE (team view, active spaces) ───────────────────
+   Replaces the stars row with:
+   - Mayor avatar (circle with initials fallback)
+   - "MAYOR" label
+   PTS row becomes "X PTS EARNED" (total team points)
+──────────────────────────────────────────────────────────────────── */
+.mayor-row {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px; overflow: hidden;
+  padding: 2px;
+}
+.mayor-avatar {
+  width: clamp(18px, 3.5cqw, 32px);
+  height: clamp(18px, 3.5cqw, 32px);
+  border-radius: 50%;
+  border: 1.5px solid var(--gold);
+  background: var(--surface3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(0.5rem, 1.2cqw, 0.72rem);
+  font-weight: 800; color: var(--gold);
+  overflow: hidden; flex-shrink: 0;
+  object-fit: cover;
+}
+.mayor-label {
+  font-size: clamp(0.38rem, 0.9cqw, 0.56rem);
+  font-weight: 800; color: var(--gold);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  line-height: 1; text-align: center;
+}
+.ob-side .mayor-row { writing-mode: horizontal-tb; }
+.ob-side .mayor-avatar { writing-mode: horizontal-tb; }
+.ob-side .mayor-label  { writing-mode: horizontal-tb; }
+
+/* Side column text fix — all rotated text elements */
+.ob-side .prop-name, .ob-side .plain-name,
+.ob-side .prop-pts,  .ob-side .plain-pts { writing-mode: horizontal-tb; }
+
+/* ── BAND DOTS ─────────────────────────────────────────────────────
+   Always 4 dots inside the color band.
+   Filled dots = completions so far (capped at 4 for display).
+   Empty dots = remaining toward next star threshold marker.
+   Dots are larger than before — clearly readable in the band.
+──────────────────────────────────────────────────────────────────── */
+.band-dots {
+  display: flex; align-items: center; justify-content: center;
+  gap: clamp(3px, 0.7cqw, 7px);
+  width: 100%; height: 100%;
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+}
+.band-dot {
+  width:  clamp(6px, 1.4cqw, 12px);
+  height: clamp(6px, 1.4cqw, 12px);
+  border-radius: 50%; flex-shrink: 0;
+  transition: background 0.2s;
+}
+.band-dot.filled {
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 0 4px rgba(255,255,255,0.6);
+}
+.band-dot.empty {
+  background: rgba(0,0,0,0.25);
+  border: 1.5px solid rgba(255,255,255,0.45);
+}
+/* Side columns inherit horizontal-tb so dots stay circular */
+.ob-side .band-dots { writing-mode: horizontal-tb; }
+
+/* ── FOOTER STARS ──────────────────────────────────────────────────
+   Gold stars earned, shown above the PTS row.
+   One ★ per star threshold crossed (completionCount >= starThreshold).
+   Empty star (☆) shown if threshold set but not yet earned.
+──────────────────────────────────────────────────────────────────── */
+.prop-stars {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; gap: 1px;
+  padding: 1px 2px;
+  line-height: 1;
+}
+.prop-star-earned {
+  color: var(--gold);
+  text-shadow: 0 0 6px var(--gold);
+  font-size: clamp(0.55rem, 1.3cqw, 0.88rem);
+}
+.prop-star-empty {
+  color: var(--gold-dim);
+  font-size: clamp(0.55rem, 1.3cqw, 0.88rem);
+}
+.ob-side .prop-stars { writing-mode: horizontal-tb; }
+
+/* ── OVERLAY PANEL ─────────────────────────────────────────────────
+   Panel sits OVER the board (position:absolute inside .board-wrap).
+   Always visible when open — never hidden behind board.
+──────────────────────────────────────────────────────────────────── */
+.side-panel {
+  position: absolute;
+  top: 0; right: 0;
+  width: var(--panel-w);
+  height: 100%;
+  background: #0e0e0e;
+  border: 1px solid var(--gold-dim);
+  border-radius: 10px 0 0 10px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  /* Hidden state */
+  opacity: 0;
+  transform: translateX(100%);
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.4,0,0.2,1);
+  z-index: 100;
+  box-shadow: -8px 0 40px rgba(0,0,0,0.7);
+}
+.side-panel.open {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: all;
+}
+
+/* Panel header */
+.panel-header {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--gold-dim);
+  position: relative; display: flex; flex-direction: column; gap: 5px;
+  flex-shrink: 0;
+}
+.panel-color-bar { position:absolute; top:0; left:0; right:0; height:5px; }
+.panel-close {
+  position:absolute; top:12px; right:14px;
+  background:none; border:none; color:var(--text-dim);
+  font-size:1.1rem; cursor:pointer; transition:color 0.2s; line-height:1;
+}
+.panel-close:hover { color:var(--gold); }
+.panel-title { font-size:1rem; font-weight:800; color:var(--gold); line-height:1.2; padding-right:26px; margin-top:6px; }
+.panel-type  { font-size:0.5rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--text-dim); font-weight:600; }
+
+.status-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px; font-size:0.6rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; width:fit-content; margin-top:2px; }
+.status-badge.passing    { background:rgba(76,175,80,0.15);  color:var(--pass);     border:1px solid rgba(76,175,80,0.4); }
+.status-badge.pending    { background:rgba(255,152,0,0.15);  color:var(--pending-c);border:1px solid rgba(255,152,0,0.4); }
+.status-badge.incomplete { background:rgba(100,100,100,0.1); color:var(--text-dim); border:1px solid rgba(100,100,100,0.25); }
+.status-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.passing  .status-dot { background:var(--pass);     box-shadow:0 0 6px var(--pass); }
+.pending  .status-dot { background:var(--pending-c);box-shadow:0 0 6px var(--pending-c);animation:pulse 1.4s ease infinite; }
+.incomplete .status-dot { background:var(--text-dim); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+/* Panel body */
+.panel-body {
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  overflow-y: auto; flex: 1;
+}
+.panel-body::-webkit-scrollbar { width:4px; }
+.panel-body::-webkit-scrollbar-track { background:#0e0e0e; }
+.panel-body::-webkit-scrollbar-thumb { background:var(--gold-dim); border-radius:2px; }
+
+.detail-row { display:flex; flex-direction:column; gap:4px; }
+.detail-label { font-size:0.48rem; letter-spacing:0.18em; text-transform:uppercase; color:var(--text-dim); font-weight:600; }
+.detail-value { font-size:0.82rem; color:var(--text); line-height:1.5; }
+
+.points-display {
+  display:flex; align-items:center; gap:10px;
+  background:var(--surface3); border:1px solid var(--gold-dim);
+  border-radius:6px; padding:10px 14px;
+}
+.points-icon { font-size:1.4rem; }
+.points-num  { font-size:1.6rem; color:var(--gold); line-height:1; font-weight:800; }
+.points-num span { font-size:0.55em; color:var(--text-dim); font-weight:600; }
+.points-label { font-size:0.48rem; letter-spacing:0.14em; text-transform:uppercase; color:var(--text-dim); font-weight:600; margin-top:2px; }
+
+.divider { height:1px; background:var(--gold-dim); opacity:0.25; }
+.category-tag { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:4px; font-size:0.48rem; letter-spacing:0.14em; text-transform:uppercase; border:1px solid; width:fit-content; font-weight:700; }
+.category-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+.entity-chip { display:inline-flex; align-items:center; gap:6px; background:var(--surface3); border:1px solid var(--gold-dim); border-radius:4px; padding:4px 8px; font-size:0.56rem; font-family:monospace; color:var(--text-dim); word-break:break-all; }
+.entity-dot { width:6px; height:6px; border-radius:50%; background:var(--gold-dim); flex-shrink:0; }
+.entity-dot.live { background:var(--pass); box-shadow:0 0 4px var(--pass); }
+
+/* ── HISTORY CARDS — ops-dashboard CompletedItem style ──────────────
+   Matching the green card from the screenshot exactly:
+   border-left colored accent, icon+label row, task text, job title,
+   employee name with checkmark, full date+time.
+   NO delete/X button.
+──────────────────────────────────────────────────────────────────── */
+.history-section { display:flex; flex-direction:column; gap:6px; }
+.history-title {
+  font-size:0.58rem; font-weight:800; letter-spacing:0.16em;
+  text-transform:uppercase; color:var(--text-dim); margin-bottom:2px;
+}
+
+/* The card itself — mirrors CompletedItem from ops dashboard */
+.hist-card {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid;
+  cursor: default;
+  transition: box-shadow 0.15s;
+}
+.hist-card.passing  {
+  background: rgba(76,175,80,0.08);
+  border-color: rgba(76,175,80,0.35);
+}
+.hist-card.pending  {
+  background: rgba(255,152,0,0.08);
+  border-color: rgba(255,152,0,0.35);
+}
+.hist-card.incomplete {
+  background: rgba(100,100,100,0.06);
+  border-color: rgba(100,100,100,0.2);
+}
+
+/* Top row: status icon + label */
+.hist-top {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 1px;
+}
+.hist-check {
+  width: 14px; height: 14px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.5rem; flex-shrink: 0;
+}
+.hist-check.passing  { background: var(--pass);     color: #fff; }
+.hist-check.pending  { background: var(--pending-c); color: #fff; }
+.hist-check.incomplete { background: #555; color: #fff; }
+.hist-status-label {
+  font-size: 0.54rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+}
+.hist-status-label.passing   { color: var(--pass); }
+.hist-status-label.pending   { color: var(--pending-c); }
+.hist-status-label.incomplete{ color: var(--text-dim); }
+
+/* Task text */
+.hist-task-text {
+  font-size: 0.78rem; font-weight: 700; color: var(--text);
+  line-height: 1.3;
+}
+/* Subtitle (job title equivalent) */
+.hist-subtitle {
+  font-size: 0.6rem; font-weight: 600; color: var(--text-dim);
+}
+/* Employee line */
+.hist-employee {
+  font-size: 0.62rem; font-weight: 700; color: var(--pass);
+}
+/* Full date + time */
+.hist-datetime {
+  font-size: 0.58rem; color: var(--text-dim); font-weight: 500;
+}
+/* Points badge on the right */
+.hist-pts {
+  font-size: 0.82rem; font-weight: 800; color: var(--gold);
+  align-self: flex-start; margin-left: auto; padding-left: 8px;
+  flex-shrink: 0;
+}
+
+/* ── US-09: VIEW TOGGLE BAR ─────────────────────────────────────────
+   Sits between board and score bar.
+   Team button on the left, employee pills on the right.
+   Active pill highlights gold; team button highlights gold when active.
+──────────────────────────────────────────────────────────────────── */
+.view-toggle-bar {
+  flex-shrink: 0;
+  align-self: center;
+  width: min(100%, calc(100vh - 80px));
+  margin-top: 6px; margin-bottom: 2px;
+}
+.view-toggle-track {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface2);
+  border: 1.5px solid var(--gold-dim);
+  border-radius: 8px;
+  padding: 5px 10px;
+  overflow-x: auto;
+}
+.view-toggle-track::-webkit-scrollbar { height: 0; }
+
+.view-toggle-btn {
+  flex-shrink: 0;
+  background: none; border: 1.5px solid var(--gold-dim);
+  border-radius: 6px; padding: 4px 12px;
+  color: var(--text-dim); font-family: inherit;
+  font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: pointer; transition: all 0.18s;
+  white-space: nowrap;
+}
+.view-toggle-btn:hover { border-color: var(--gold); color: var(--gold); }
+.view-toggle-btn.active {
+  background: var(--gold); border-color: var(--gold);
+  color: #000; font-weight: 800;
+}
+
+.view-toggle-divider {
+  flex-shrink: 0; width: 1px; height: 18px;
+  background: var(--gold-dim); opacity: 0.5;
+}
+.view-toggle-label {
+  flex-shrink: 0;
+  font-size: 0.58rem; font-weight: 600;
+  color: var(--text-dim); letter-spacing: 0.08em;
+  text-transform: uppercase; white-space: nowrap;
+}
+
+/* Employee pills */
+.emp-pills {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: nowrap;
+}
+.emp-pill {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 5px;
+  background: var(--surface3);
+  border: 1.5px solid var(--gold-dim);
+  border-radius: 20px;
+  padding: 3px 10px 3px 4px;
+  cursor: pointer; transition: all 0.18s;
+  white-space: nowrap;
+}
+.emp-pill:hover { border-color: var(--gold); }
+.emp-pill.active {
+  border-color: var(--gold);
+  background: rgba(201,168,76,0.15);
+}
+.emp-pill-avatar {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--surface2);
+  border: 1.5px solid var(--gold-dim);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.5rem; font-weight: 800; color: var(--gold);
+  overflow: hidden; flex-shrink: 0;
+}
+.emp-pill-avatar img {
+  width: 100%; height: 100%; border-radius: 50%; object-fit: cover;
+}
+.emp-pill-name {
+  font-size: 0.58rem; font-weight: 700;
+  color: var(--text-dim); letter-spacing: 0.04em;
+}
+.emp-pill.active .emp-pill-name { color: var(--gold); }
+
+.hist-empty {
+  font-size: 0.76rem; color: var(--text-dim);
+  text-align: center; padding: 14px 0; font-style: italic;
+}
+
+/* ── PANEL TABS ─────────────────────────────────────────────────────
+   Tab strip inside panel body.
+   Active tab: gold underline + bright text.
+──────────────────────────────────────────────────────────────────── */
+.panel-tabs {
+  display: flex; gap: 0;
+  border-bottom: 2px solid var(--gold-dim);
+  margin-bottom: 12px; flex-shrink: 0;
+}
+.panel-tab {
+  flex: 1; padding: 7px 4px;
+  background: none; border: none;
+  font-family: inherit; font-size: 0.58rem;
+  font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; cursor: pointer;
+  color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.panel-tab:hover { color: var(--text); }
+.panel-tab.active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+
+/* Tab content panes — only the active one is shown */
+.tab-pane { display: none; flex-direction: column; gap: 12px; }
+.tab-pane.active { display: flex; }
+
+/* ── PAGINATION ─────────────────────────────────────────────────────
+   Sits below a paginated list.
+──────────────────────────────────────────────────────────────────── */
+.pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px; padding-top: 4px; flex-shrink: 0;
+}
+.pg-btn {
+  background: none; border: 1.5px solid var(--gold-dim);
+  border-radius: 5px; color: var(--text-dim);
+  font-family: inherit; font-size: 0.6rem; font-weight: 700;
+  padding: 4px 10px; cursor: pointer;
+  transition: all 0.15s;
+}
+.pg-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.pg-btn:disabled { opacity: 0.3; cursor: default; }
+.pg-info {
+  font-size: 0.56rem; color: var(--text-dim);
+  font-weight: 600; letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+/* ── US-10: LEADERBOARD (team view panel) ───────────────────────────
+   Ranked list of employees by completion count.
+   Medal colors: 🥇 gold, 🥈 silver, 🥉 bronze, rest muted.
+──────────────────────────────────────────────────────────────────── */
+.leaderboard { display:flex; flex-direction:column; gap:5px; }
+.lb-row {
+  display:flex; align-items:center; gap:8px;
+  padding:7px 10px; border-radius:6px;
+  background:var(--surface3); border:1px solid var(--gold-dim);
+  transition: background 0.15s;
+}
+.lb-row.lb-1 { border-color:rgba(201,168,76,0.6); background:rgba(201,168,76,0.1); }
+.lb-row.lb-2 { border-color:rgba(180,180,180,0.4); background:rgba(180,180,180,0.06); }
+.lb-row.lb-3 { border-color:rgba(180,110,50,0.4);  background:rgba(180,110,50,0.06); }
+.lb-rank {
+  font-size:0.72rem; font-weight:900; width:20px; text-align:center; flex-shrink:0;
+}
+.lb-1 .lb-rank { color:var(--gold); }
+.lb-2 .lb-rank { color:#b0b0b0; }
+.lb-3 .lb-rank { color:#b46e32; }
+.lb-avatar {
+  width:24px; height:24px; border-radius:50%; flex-shrink:0;
+  border:1.5px solid var(--gold-dim);
+  background:var(--surface2);
+  display:flex; align-items:center; justify-content:center;
+  font-size:0.52rem; font-weight:800; color:var(--gold);
+  overflow:hidden;
+}
+.lb-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+.lb-name {
+  flex:1; font-size:0.72rem; font-weight:700; color:var(--text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.lb-mayor-badge {
+  font-size:0.48rem; font-weight:800; letter-spacing:0.1em;
+  color:var(--gold); text-transform:uppercase;
+  background:rgba(201,168,76,0.15); border:1px solid rgba(201,168,76,0.35);
+  border-radius:4px; padding:1px 5px; flex-shrink:0;
+}
+.lb-stars { font-size:0.65rem; color:var(--gold); flex-shrink:0; letter-spacing:1px; }
+.lb-count {
+  font-size:0.7rem; font-weight:800; color:var(--gold);
+  flex-shrink:0; min-width:28px; text-align:right;
+}
+.lb-count-label {
+  font-size:0.44rem; color:var(--text-dim); font-weight:600;
+  letter-spacing:0.06em; text-transform:uppercase;
+  display:block; text-align:right;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   US-12 + US-13 · SQUID GAME INTRO SCREEN
+════════════════════════════════════════════════════════════════════ */
+#introScreen {
+  position: fixed; inset: 0; z-index: 1000;
+  background: #050505;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 20px; gap: 0;
+  transition: opacity 0.7s ease;
+}
+#introScreen.dismissing { opacity: 0; pointer-events: none; }
+
+/* GIF: 16:9 placeholder, top half */
+.intro-gif-wrap {
+  width: 100%; max-width: 560px;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px; overflow: hidden;
+  border: 2px solid var(--gold-dim);
+  background: #0a0807;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.intro-gif-wrap img.intro-gif {
+  width: 100%; height: 100%; object-fit: cover;
+  display: none; /* shown when src is set */
+}
+.intro-gif-placeholder {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+}
+.intro-gif-icon {
+  font-size: clamp(3.5rem, 9vw, 6rem);
+  animation: piggyBounce 1.4s ease-in-out infinite;
+  filter: drop-shadow(0 0 20px rgba(201,168,76,0.5));
+}
+@keyframes piggyBounce {
+  0%,100% { transform: translateY(0) rotate(-4deg) scale(1); }
+  45%     { transform: translateY(-14px) rotate(4deg) scale(1.06); }
+}
+.intro-gif-label {
+  font-size: 0.58rem; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--text-dim); font-weight: 700;
+  border: 1px dashed var(--gold-dim); border-radius: 4px;
+  padding: 4px 14px;
+}
+
+/* Stats rows */
+.intro-stats {
+  width: 100%; max-width: 560px;
+  margin-top: 14px; flex-shrink: 0;
+  border: 1px solid var(--gold-dim); border-radius: 10px;
+  overflow: hidden;
+}
+.intro-stat-row {
+  display: flex; align-items: stretch;
+  border-bottom: 1px solid var(--gold-dim);
+}
+.intro-stat-row:last-child { border-bottom: none; }
+
+.intro-stat-label {
+  flex: 0 0 50%;
+  padding: 13px 18px;
+  background: var(--surface2);
+  border-right: 1px solid var(--gold-dim);
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
+}
+.intro-stat-name {
+  font-size: clamp(0.7rem, 1.5vw, 0.88rem);
+  font-weight: 800; color: var(--text);
+  text-transform: uppercase; letter-spacing: 0.06em; line-height: 1.2;
+}
+.intro-stat-sub {
+  font-size: clamp(0.5rem, 1vw, 0.62rem);
+  color: var(--text-dim); font-weight: 500; line-height: 1.3;
+}
+
+.intro-stat-value {
+  flex: 1; padding: 13px 18px;
+  background: var(--surface);
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 3px;
+}
+.slot-prefix {
+  font-size: clamp(1rem, 2.5vw, 1.4rem);
+  font-weight: 700; color: var(--gold-light); line-height: 1;
+  align-self: center; margin-right: 2px; flex-shrink: 0;
+}
+
+/* ── DIGIT REEL DISPLAY ─────────────────────────────────────────────
+   Each number is broken into individual digit cells.
+   Each cell shows one digit on a "reel" that tumbles up or down.
+   Right-most digit locks first; digits settle left-to-right.
+   Elastic overshoot on landing. Heavy motion blur during spin.
+──────────────────────────────────────────────────────────────────── */
+.reel-display {
+  display: flex; align-items: center; gap: 2px;
+  justify-content: flex-end;
+}
+.reel-sep {
+  /* Comma separator between digit groups */
+  font-size: clamp(1.4rem, 3.8vw, 2.4rem);
+  font-weight: 900; color: var(--gold);
+  line-height: 1; align-self: flex-end; padding-bottom: 1px;
+  user-select: none;
+}
+.reel-cell {
+  position: relative;
+  width:  clamp(22px, 5.5vw, 38px);
+  height: clamp(38px, 9vw,   62px);
+  min-height: clamp(38px, 9vw, 62px); /* prevents offsetHeight:0 race */
+  overflow: hidden;
+  background: #0a0807;
+  border: 1.5px solid var(--gold-dim);
+  border-radius: 4px;
+  box-shadow: inset 0 3px 8px rgba(0,0,0,0.7),
+              inset 0 -3px 8px rgba(0,0,0,0.4);
+}
+/* Highlight line across top — the "read window" */
+.reel-cell::before {
+  content: '';
+  position: absolute; top: 35%; left: 0; right: 0;
+  height: 1px; background: rgba(201,168,76,0.35);
+  z-index: 4; pointer-events: none;
+}
+.reel-cell::after {
+  content: '';
+  position: absolute; bottom: 35%; left: 0; right: 0;
+  height: 1px; background: rgba(201,168,76,0.35);
+  z-index: 4; pointer-events: none;
+}
+/* The moving strip inside the cell */
+.reel-strip {
+  position: absolute;
+  left: 0; right: 0;
+  display: flex; flex-direction: column;
+  align-items: center;
+  will-change: transform;
+}
+.reel-digit {
+  width: 100%;
+  height: clamp(38px, 9vw, 62px);
+  min-height: clamp(38px, 9vw, 62px);
+  display: flex; align-items: center; justify-content: center;
+  /* Monospace guarantees every digit is identical width (Gemini fix #4) */
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  font-size: clamp(1.4rem, 3.8vw, 2.4rem);
+  font-weight: 900; color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1; user-select: none;
+  flex-shrink: 0;
+}
+/* Fade mask top + bottom of each cell — hides off-screen digits */
+.reel-cell .reel-mask-top,
+.reel-cell .reel-mask-bottom {
+  position: absolute; left: 0; right: 0; height: 35%;
+  z-index: 3; pointer-events: none;
+}
+.reel-cell .reel-mask-top    { top: 0;
+  background: linear-gradient(to bottom, #0a0807 0%, transparent 100%); }
+.reel-cell .reel-mask-bottom { bottom: 0;
+  background: linear-gradient(to top, #0a0807 0%, transparent 100%); }
+
+/* Bottom bar */
+.intro-bottom {
+  width: 100%; max-width: 560px;
+  display: flex; align-items: center; gap: 14px;
+  margin-top: 14px; flex-shrink: 0;
+}
+.intro-proceed {
+  flex: 1; padding: 14px 0;
+  background: var(--gold); border: none; border-radius: 8px;
+  color: #000; font-family: inherit;
+  font-size: clamp(0.78rem, 1.6vw, 0.94rem);
+  font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase;
+  cursor: pointer; transition: background 0.18s, transform 0.1s;
+}
+.intro-proceed:hover  { background: var(--gold-light); }
+.intro-proceed:active { transform: scale(0.97); }
+.intro-countdown {
+  font-size: clamp(0.7rem, 1.4vw, 0.84rem);
+  color: var(--text-dim); font-weight: 700;
+  letter-spacing: 0.08em; white-space: nowrap;
+  min-width: 80px; text-align: right;
+}
+
+/* Replay button — fixed bottom-right after intro closes */
+#replayIntroBtn {
+  position: fixed; bottom: 14px; right: 14px; z-index: 50;
+  background: var(--surface2); border: 1.5px solid var(--gold-dim);
+  border-radius: 8px; padding: 6px 14px;
+  color: var(--text-dim); font-family: inherit;
+  font-size: 0.58rem; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  cursor: pointer; transition: all 0.2s;
+  display: none;
+}
+#replayIntroBtn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ── HEADCOUNT CHANGE BADGE ─────────────────────────────────────────
+   Springs in during education sequence.
+   Green = alumni  (productivity up — good for bonus)
+   Red   = new hire (productivity dn — pool diluted per person)
+──────────────────────────────────────────────────────────────────── */
+.hc-badge {
+  min-height: 52px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 4px 0 2px; pointer-events: none;
+}
+.hc-badge-inner {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 10px 22px; border-radius: 40px;
+  font-family: 'Inter', sans-serif;
+  font-size: clamp(0.82rem, 1.8vw, 1rem);
+  font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+  white-space: nowrap;
+  animation: badgePop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.hc-badge-inner.alumni {
+  background: rgba(34,197,94,0.18); border: 2px solid rgba(34,197,94,0.7);
+  color: #4ade80;
+  box-shadow: 0 0 24px rgba(34,197,94,0.35), inset 0 0 12px rgba(34,197,94,0.08);
+}
+.hc-badge-inner.new-hire {
+  background: rgba(239,68,68,0.15); border: 2px solid rgba(239,68,68,0.6);
+  color: #f87171;
+  box-shadow: 0 0 24px rgba(239,68,68,0.3), inset 0 0 12px rgba(239,68,68,0.08);
+}
+.hc-badge-inner.today {
+  background: rgba(201,168,76,0.18); border: 2px solid rgba(201,168,76,0.7);
+  color: var(--gold);
+  box-shadow: 0 0 24px rgba(201,168,76,0.35), inset 0 0 12px rgba(201,168,76,0.08);
+}
+.hc-badge-icon {
+  font-size: 1.3em; line-height: 1;
+  animation: badgeIconBounce 0.6s cubic-bezier(0.34,1.56,0.64,1) 0.1s both;
+}
+@keyframes badgePop {
+  0%   { opacity:0; transform:scale(0.4) translateY(18px); }
+  100% { opacity:1; transform:scale(1)   translateY(0); }
+}
+@keyframes badgeIconBounce {
+  0%   { transform:rotate(-15deg) scale(0.6); }
+  60%  { transform:rotate(10deg)  scale(1.25); }
+  100% { transform:rotate(0deg)   scale(1); }
+}
+@keyframes badgeFadeUp {
+  0%   { opacity:1; transform:scale(1)    translateY(0); }
+  100% { opacity:0; transform:scale(0.85) translateY(-14px); }
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════
+     US-12 + US-13 · INTRO SCREEN
+     Covers the full viewport on load. Dismissed by:
+       - Clicking "Proceed" button
+       - 5-second auto-dismiss countdown
+     Replay button appears bottom-right after dismiss (US-13).
+════════════════════════════════════════════════════════════════════ -->
+<div id="introScreen">
+
+  <!-- Top: 16:9 GIF slot -->
+  <div class="intro-gif-wrap">
+    <!-- Replace src below with your piggybank GIF path when ready -->
+    <img class="intro-gif" id="introGif" src="" alt="OllieBoard Intro">
+    <!-- Placeholder shown until GIF is loaded -->
+    <div class="intro-gif-placeholder" id="introGifPlaceholder">
+      <div class="intro-gif-icon">🐷</div>
+      <div class="intro-gif-label">Piggybank animation · GIF goes here</div>
+    </div>
+  </div>
+
+  <!-- Bottom: four stat rows with digit reel displays -->
+  <div class="intro-stats">
+
+    <div class="intro-stat-row">
+      <div class="intro-stat-label">
+        <div class="intro-stat-name">Number of Teammates</div>
+        <div class="intro-stat-sub">Last 30-day average</div>
+      </div>
+      <div class="intro-stat-value">
+        <div class="reel-display" id="reelTeammates"></div>
+      </div>
+    </div>
+
+    <div class="intro-stat-row">
+      <div class="intro-stat-label">
+        <div class="intro-stat-name">Daily Piñata Bonus Rate</div>
+        <div class="intro-stat-sub" id="introSubRate">Base rate · increases as team productivity replaces alumni</div>
+      </div>
+      <div class="intro-stat-value">
+        <span class="slot-prefix">$</span>
+        <div class="reel-display" id="reelRate"></div>
+      </div>
+    </div>
+
+    <div class="intro-stat-row">
+      <div class="intro-stat-label">
+        <div class="intro-stat-name">OA Bonus Per Teammate</div>
+        <div class="intro-stat-sub" id="introSubPerPerson">Total pool ÷ number of teammates</div>
+      </div>
+      <div class="intro-stat-value">
+        <span class="slot-prefix">$</span>
+        <div class="reel-display" id="reelPerPerson"></div>
+      </div>
+    </div>
+
+    <div class="intro-stat-row">
+      <div class="intro-stat-label">
+        <div class="intro-stat-name">Total OA Bonus</div>
+        <div class="intro-stat-sub" id="introSubTotal">Loading…</div>
+      </div>
+      <div class="intro-stat-value">
+        <span class="slot-prefix">$</span>
+        <div class="reel-display" id="reelTotal"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Headcount change badge — shown during education sequence -->
+  <div id="headcountBadge" class="hc-badge" aria-live="polite"></div>
+
+  <!-- Proceed + countdown -->
+  <div class="intro-bottom">
+    <button class="intro-proceed" id="introProceed" onclick="dismissIntro()">
+      Proceed to Board
+    </button>
+    <div class="intro-countdown" id="introCountdown">Closing in 5…</div>
+  </div>
+
+</div>
+
+<!-- Replay button — hidden until intro is dismissed -->
+<button id="replayIntroBtn" onclick="showIntro()" title="Replay intro">
+  🐷 Replay Intro
+</button>
+
+<div class="board-wrap" id="boardWrap">
+  <div class="board" id="board">
+    <div class="center">
+      <div class="center-grid"></div>
+    </div>
+  </div>
+
+  <!-- Overlay panel — sits over board when open -->
+  <div class="side-panel" id="sidePanel">
+    <div class="panel-header">
+      <div class="panel-color-bar" id="panelColorBar"></div>
+      <button class="panel-close" id="panelClose">✕</button>
+      <div class="panel-title"  id="panelTitle"></div>
+      <div class="panel-type"   id="panelType"></div>
+      <div id="panelStatus"></div>
+    </div>
+    <div class="panel-body" id="panelBody"></div>
+  </div>
+</div>
+
+<!-- US-09: View toggle — sits between board and score bar -->
+<div class="view-toggle-bar" id="viewToggleBar">
+  <div class="view-toggle-track">
+    <button class="view-toggle-btn active" id="btnTeam" onclick="setView('team')">
+      👥 Team View
+    </button>
+    <div class="view-toggle-divider"></div>
+    <span class="view-toggle-label" id="viewToggleLabel">Viewing: Team</span>
+    <div class="view-toggle-divider"></div>
+    <div class="emp-pills" id="empPills"></div>
+  </div>
+</div>
+
+<div class="score-bar" id="scoreBar"></div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   US-01 · STORE CONFIG
+   One-off variables. last_oa_date drives all bonus calculations.
+════════════════════════════════════════════════════════════════════ */
+const STORE_CONFIG = {
+  store_name: "Boston Pie Inc",
+  last_oa_date: "2026-01-15",
+  /* daily_piggybank_rate: base daily contribution when at or above baseline.
+     Increases by this same amount for each teammate below baseline_headcount
+     (productivity replaces alumni — fewer people, higher rate per survivor). */
+  daily_piggybank_rate: 25,
+  /* baseline_headcount: the reference headcount at which daily_piggybank_rate
+     applies at face value. If current headcount < baseline, rate increases. */
+  baseline_headcount: 8,
+};
+
+/* ════════════════════════════════════════════════════════════════════
+   US-01 · HEADCOUNT LOG
+   One entry per day. Board computes 30-day rolling average.
+════════════════════════════════════════════════════════════════════ */
+const HEADCOUNT_LOG = [
+  { date:"2026-02-25", count:9 }, { date:"2026-02-26", count:9 },
+  { date:"2026-02-27", count:8 }, { date:"2026-02-28", count:8 },
+  { date:"2026-03-01", count:9 }, { date:"2026-03-02", count:9 },
+  { date:"2026-03-03", count:8 }, { date:"2026-03-04", count:7 },
+  { date:"2026-03-05", count:8 }, { date:"2026-03-06", count:8 },
+  { date:"2026-03-07", count:9 }, { date:"2026-03-08", count:9 },
+  { date:"2026-03-09", count:8 }, { date:"2026-03-10", count:8 },
+  { date:"2026-03-11", count:7 }, { date:"2026-03-12", count:7 },
+  { date:"2026-03-13", count:8 }, { date:"2026-03-14", count:8 },
+  { date:"2026-03-15", count:9 }, { date:"2026-03-16", count:9 },
+  { date:"2026-03-17", count:8 }, { date:"2026-03-18", count:7 },
+  { date:"2026-03-19", count:7 }, { date:"2026-03-20", count:8 },
+  { date:"2026-03-21", count:8 }, { date:"2026-03-22", count:9 },
+  { date:"2026-03-23", count:9 }, { date:"2026-03-24", count:8 },
+  { date:"2026-03-25", count:8 }, { date:"2026-03-26", count:7 },
+  { date:"2026-03-27", count:7 }, { date:"2026-03-28", count:8 },
+  { date:"2026-03-29", count:8 }, { date:"2026-03-30", count:9 },
+  { date:"2026-03-31", count:9 }
+];
+
+/* ════════════════════════════════════════════════════════════════════
+   US-01 · EMPLOYEES
+   Schema: id, discord_handle, name, avatar_url, start_date,
+           completions[]: { entity, timestamp }
+   - entity maps to SPACE_CONFIG[n].entity (ollieboard.oa_space_N)
+   - timestamp is ISO 8601 UTC
+   - Mayor = most completions on space; tie → earliest start_date
+════════════════════════════════════════════════════════════════════ */
+const EMPLOYEES = [
+  {
+    id: "emp_stub_001",
+    discord_handle: "mariag#4421",
+    name: "Maria Garcia",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/mariag.png",
+    start_date: "2022-03-10",
+    completions: [
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-01T06:02:18Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-01T11:45:55Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-02T06:10:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-02T12:30:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-03T06:05:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-03T11:50:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-04T06:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-04T12:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-05T06:15:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-05T11:55:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-06T06:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-06T12:10:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-07T06:05:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-07T11:45:00Z" }
+    ]
+  },
+  {
+    id: "emp_stub_002",
+    discord_handle: "jamest#7823",
+    name: "James Torres",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/jamest.png",
+    start_date: "2022-07-22",
+    completions: [
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-01T08:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-01T14:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-02T08:05:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-02T14:10:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-03T08:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-03T14:05:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-04T08:10:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-04T14:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-05T08:05:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-05T14:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-06T08:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-07T08:00:00Z" }
+    ]
+  },
+  {
+    id: "emp_stub_003",
+    discord_handle: "lenam#3390",
+    name: "Lena Mitchell",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/lenam.png",
+    start_date: "2023-01-09",
+    completions: [
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-01T07:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-02T07:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-03T07:05:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-04T07:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-05T07:10:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-06T07:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-07T07:05:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-08T07:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-09T07:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-10T07:05:00Z" }
+    ]
+  },
+  {
+    id: "emp_stub_004",
+    discord_handle: "carlosv#5512",
+    name: "Carlos Vega",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/carlosv.png",
+    start_date: "2023-04-18",
+    completions: [
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-01T09:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-02T09:10:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-03T09:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-04T09:05:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-05T09:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-06T09:10:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-07T09:00:00Z" }
+    ]
+  },
+  {
+    id: "emp_stub_005",
+    discord_handle: "sarahk#0091",
+    name: "Sarah Kim",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/sarahk.png",
+    start_date: "2023-08-30",
+    completions: [
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-01T10:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-02T10:05:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-03T10:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-04T10:10:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-05T10:00:00Z" }
+    ]
+  },
+  {
+    id: "emp_stub_006",
+    discord_handle: "devonr#2278",
+    name: "Devon Reynolds",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/devonr.png",
+    start_date: "2024-02-14",
+    completions: [
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-03T11:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-05T11:05:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-07T11:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-09T11:10:00Z" }
+    ]
+  },
+  {
+    id: "emp_stub_007",
+    discord_handle: "priyap#8834",
+    name: "Priya Patel",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/priyap.png",
+    start_date: "2024-05-20",
+    completions: [
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-04T13:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-06T13:05:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-08T13:00:00Z" }
+    ]
+  },
+  {
+    id: "emp_stub_008",
+    discord_handle: "mikew#6650",
+    name: "Mike Washington",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/mikew.png",
+    start_date: "2024-09-03",
+    completions: [
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-05T15:00:00Z" },
+      { entity:"ollieboard.oa_space_1", timestamp:"2025-03-07T15:10:00Z" }
+    ]
+  }
+];
+
+/* ════════════════════════════════════════════════════════════════════
+   US-02 · SPACE CONFIG
+   Drives all board rendering. Fields:
+   - active: true = live task, false = unreleased
+   - release_date: ISO date string (formatted on display) or null
+   - release_label: free text fallback ("Spring 2025") or null
+   - entity: OllieBoard entity ID — joins to EMPLOYEES.completions
+   - pts_per_completion, star_threshold: game mechanics
+   Board positions (rot, grid row/col) are in BOARD_LAYOUT below,
+   keeping game config separate from display config.
+════════════════════════════════════════════════════════════════════ */
+const SPACE_CONFIG = [
+  {
+    id:1,  entity:"ollieboard.oa_space_1",
+    label:"Windsor Ave",      active:true,
+    release_date:null,        release_label:null,
+    pts_per_completion:10,    star_threshold:5,
+    color:"#896653",
+    desc:"Sanitization — all surfaces cleaned and logged per shift protocol."
+  },
+  {
+    id:3,  entity:"ollieboard.oa_space_3",
+    label:"Baltic Ave",       active:false,
+    release_date:"2025-05-12", release_label:null,
+    pts_per_completion:10,    star_threshold:5,
+    color:"#896653",
+    desc:"Temperature logs — accurate readings maintained every shift."
+  },
+  {
+    id:6,  entity:"ollieboard.oa_space_6",
+    label:"Oriental Ave",     active:false,
+    release_date:null,        release_label:"Spring 2025",
+    pts_per_completion:10,    star_threshold:5,
+    color:"#c6f4ea",
+    desc:"FIFO rotation applied across all storage areas."
+  },
+  {
+    id:8,  entity:"ollieboard.oa_space_8",
+    label:"Vermont Ave",      active:false,
+    release_date:null,        release_label:"Spring 2025",
+    pts_per_completion:10,    star_threshold:5,
+    color:"#c6f4ea",
+    desc:"All products correctly date-labeled with use-by information."
+  },
+  {
+    id:9,  entity:"ollieboard.oa_space_9",
+    label:"Connecticut Ave",  active:false,
+    release_date:null,        release_label:"Summer 2025",
+    pts_per_completion:10,    star_threshold:5,
+    color:"#c6f4ea",
+    desc:"Toppings meet portioning standards every shift."
+  },
+  {
+    id:11, entity:"ollieboard.oa_space_11",
+    label:"St. Charles Pl",   active:false,
+    release_date:"2025-06-02", release_label:null,
+    pts_per_completion:15,    star_threshold:4,
+    color:"#a42c74",
+    desc:"Dough properly balled, labeled, and proofed each shift."
+  },
+  {
+    id:13, entity:"ollieboard.oa_space_13",
+    label:"States Ave",       active:false,
+    release_date:null,        release_label:"Summer 2025",
+    pts_per_completion:15,    star_threshold:4,
+    color:"#a42c74",
+    desc:"All toppings prepped to spec and meeting freshness standards."
+  },
+  {
+    id:14, entity:"ollieboard.oa_space_14",
+    label:"Virginia Ave",     active:false,
+    release_date:null,        release_label:"Summer 2025",
+    pts_per_completion:15,    star_threshold:4,
+    color:"#a42c74",
+    desc:"Sauce applied correctly with right ladle and spread."
+  },
+  {
+    id:16, entity:"ollieboard.oa_space_16",
+    label:"St. James Place",  active:false,
+    release_date:"2025-06-16", release_label:null,
+    pts_per_completion:15,    star_threshold:4,
+    color:"#e09252",
+    desc:"Oven temperature and bake times calibrated and documented."
+  },
+  {
+    id:18, entity:"ollieboard.oa_space_18",
+    label:"Tennessee Ave",    active:false,
+    release_date:null,        release_label:"Fall 2025",
+    pts_per_completion:15,    star_threshold:4,
+    color:"#e09252",
+    desc:"Pizzas enter and exit the oven on schedule."
+  },
+  {
+    id:19, entity:"ollieboard.oa_space_19",
+    label:"New York Ave",     active:false,
+    release_date:null,        release_label:"Fall 2025",
+    pts_per_completion:15,    star_threshold:4,
+    color:"#e09252",
+    desc:"Sanitation compliance — hand-sink availability and setup."
+  },
+  {
+    id:21, entity:"ollieboard.oa_space_21",
+    label:"Kentucky Ave",     active:false,
+    release_date:"2025-07-07", release_label:null,
+    pts_per_completion:20,    star_threshold:3,
+    color:"#ed1518",
+    desc:"Pizzas cut correctly using rocker blade technique."
+  },
+  {
+    id:23, entity:"ollieboard.oa_space_23",
+    label:"Indiana Ave",      active:false,
+    release_date:null,        release_label:"Fall 2025",
+    pts_per_completion:20,    star_threshold:3,
+    color:"#ed1518",
+    desc:"Boxes assembled correctly, free of grease transfer."
+  },
+  {
+    id:24, entity:"ollieboard.oa_space_24",
+    label:"Illinois Ave",     active:false,
+    release_date:null,        release_label:"Fall 2025",
+    pts_per_completion:20,    star_threshold:3,
+    color:"#ed1518",
+    desc:"Box presentation — proper folding, label placement, centering."
+  },
+  {
+    id:26, entity:"ollieboard.oa_space_26",
+    label:"Atlantic Ave",     active:false,
+    release_date:"2025-08-04", release_label:null,
+    pts_per_completion:20,    star_threshold:3,
+    color:"#fcf81d",
+    desc:"Orders made to spec — correct toppings, sizes, crust types."
+  },
+  {
+    id:27, entity:"ollieboard.oa_space_27",
+    label:"Ventnor Ave",      active:false,
+    release_date:null,        release_label:"Winter 2025",
+    pts_per_completion:20,    star_threshold:3,
+    color:"#fcf81d",
+    desc:"Delivery time from order to door meets windows."
+  },
+  {
+    id:29, entity:"ollieboard.oa_space_29",
+    label:"Marvin Gardens",   active:false,
+    release_date:null,        release_label:"Winter 2025",
+    pts_per_completion:20,    star_threshold:3,
+    color:"#fcf81d",
+    desc:"Carry-out orders ready within promised time windows."
+  },
+  {
+    id:31, entity:"ollieboard.oa_space_31",
+    label:"Pacific Ave",      active:false,
+    release_date:"2025-09-01", release_label:null,
+    pts_per_completion:30,    star_threshold:3,
+    color:"#3a9e58",
+    desc:"Customer satisfaction scores aggregated and reviewed."
+  },
+  {
+    id:32, entity:"ollieboard.oa_space_32",
+    label:"NC Avenue",        active:false,
+    release_date:null,        release_label:"Winter 2025",
+    pts_per_completion:30,    star_threshold:3,
+    color:"#3a9e58",
+    desc:"Full team in proper uniform. Name tags required every shift."
+  },
+  {
+    id:34, entity:"ollieboard.oa_space_34",
+    label:"Penn Ave",         active:false,
+    release_date:null,        release_label:"Winter 2025",
+    pts_per_completion:30,    star_threshold:3,
+    color:"#3a9e58",
+    desc:"Cleanliness across all zones — lobby, makeline, oven, BOH."
+  },
+  {
+    id:37, entity:"ollieboard.oa_space_37",
+    label:"Park Place",       active:false,
+    release_date:null,        release_label:"2026",
+    pts_per_completion:40,    star_threshold:2,
+    color:"#0a18a3",
+    desc:"Full safety walkthrough — exits, first aid, hazard compliance."
+  },
+  {
+    id:39, entity:"ollieboard.oa_space_39",
+    label:"Boardwalk",        active:false,
+    release_date:null,        release_label:"2026",
+    pts_per_completion:40,    star_threshold:2,
+    color:"#0a18a3",
+    desc:"Manager OA score — leadership, compliance docs, findings."
+  }
+];
+
+/* ════════════════════════════════════════════════════════════════════
+   US-01 · DERIVATION FUNCTIONS
+   All game state is computed fresh from raw data on every load.
+   Nothing is stored as derived state — it's always recalculated.
+════════════════════════════════════════════════════════════════════ */
+
+/* Build a lookup index: entity string → SPACE_CONFIG entry */
+const SPACE_BY_ENTITY = {};
+SPACE_CONFIG.forEach(sc => { SPACE_BY_ENTITY[sc.entity] = sc; });
+
+/* Build a lookup index: space id → SPACE_CONFIG entry */
+const SPACE_BY_ID = {};
+SPACE_CONFIG.forEach(sc => { SPACE_BY_ID[sc.id] = sc; });
+
+/* ── Days since last OA (from STORE_CONFIG.last_oa_date) ── */
+function daysSinceLastOA() {
+  const last = new Date(STORE_CONFIG.last_oa_date);
+  const today = new Date();
+  return Math.floor((today - last) / (1000 * 60 * 60 * 24));
+}
+
+/* ── 30-day rolling average headcount ── */
+function avg30DayHeadcount() {
+  const today = new Date();
+  const cutoff = new Date(today);
+  cutoff.setDate(today.getDate() - 30);
+  let recent = HEADCOUNT_LOG.filter(e => new Date(e.date) >= cutoff);
+  /* Fallback: if no entries in last 30 days, use the most recent 30 entries available */
+  if (!recent.length) {
+    recent = [...HEADCOUNT_LOG]
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 30);
+  }
+  if (!recent.length) return 0;
+  return Math.round(recent.reduce((s, e) => s + e.count, 0) / recent.length * 10) / 10;
+}
+
+/* ── Completions per employee per space ──
+   Returns count of completions for a given employee + space entity. */
+function completionCount(emp, entity) {
+  return emp.completions.filter(c => c.entity === entity).length;
+}
+
+/* ── All completions for a space across all employees ──
+   Returns array of { emp, count, timestamps } sorted by count desc,
+   then by start_date asc (earliest tenure wins ties). */
+function spaceLeaderboard(spaceId) {
+  const sc = SPACE_BY_ID[spaceId];
+  if (!sc) return [];
+  return EMPLOYEES
+    .map(emp => ({
+      emp,
+      count: completionCount(emp, sc.entity),
+      timestamps: emp.completions
+        .filter(c => c.entity === sc.entity)
+        .map(c => c.timestamp)
+        .sort()
+    }))
+    .filter(row => row.count > 0)
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;          /* most completions first */
+      return new Date(a.emp.start_date) - new Date(b.emp.start_date); /* earliest tenure wins */
+    });
+}
+
+/* ── Mayor of a space ──
+   The employee with the most completions; tie → earliest start_date. */
+function getMayor(spaceId) {
+  const board = spaceLeaderboard(spaceId);
+  return board.length > 0 ? board[0].emp : null;
+}
+
+/* ── Total completions for a space (all employees) ── */
+function totalCompletions(spaceId) {
+  const sc = SPACE_BY_ID[spaceId];
+  if (!sc) return 0;
+  return EMPLOYEES.reduce((sum, emp) => sum + completionCount(emp, sc.entity), 0);
+}
+
+/* ── Total points earned for a space (all employees) ── */
+function totalPointsEarned(spaceId) {
+  const sc = SPACE_BY_ID[spaceId];
+  if (!sc) return 0;
+  return totalCompletions(spaceId) * sc.pts_per_completion;
+}
+
+/* ── Stars earned by an employee on a space ──
+   floor(completionCount / star_threshold) */
+function starsEarned(emp, spaceId) {
+  const sc = SPACE_BY_ID[spaceId];
+  if (!sc || sc.star_threshold === 0) return 0;
+  return Math.floor(completionCount(emp, sc.entity) / sc.star_threshold);
+}
+
+/* ── Release date display string ── */
+function releaseDisplay(sc) {
+  if (sc.release_date) {
+    return new Date(sc.release_date).toLocaleDateString('en-US',
+      { month:'long', day:'numeric', year:'numeric' });
+  }
+  if (sc.release_label) return sc.release_label;
+  return 'Coming Soon';
+}
+
+/* ── OA Bonus calculations ──────────────────────────────────────────
+   Daily rate scales with headcount vs baseline:
+     - At or above baseline → base rate ($25)
+     - Each teammate below baseline → +$25/day (productivity bonus)
+     - Above baseline → rate stays at base (no penalty, no bonus)
+
+   Pool  = days since last OA × effective daily rate
+   Share = pool ÷ current headcount
+
+   calcDailyRate(n) is exposed so the intro education sequence
+   can compute hypothetical rates for +1/-1 headcount scenarios.
+─────────────────────────────────────────────────────────────────── */
+function calcDailyRate(headcount) {
+  const base     = STORE_CONFIG.daily_piggybank_rate;
+  const baseline = STORE_CONFIG.baseline_headcount;
+  /* Each teammate vs baseline shifts the rate by ±$base:
+     - Below baseline (fewer people): +$base per missing teammate
+     - Above baseline (more people):  -$base per extra teammate, floor 0
+     At baseline: exactly base rate. */
+  const delta = baseline - headcount; /* positive = below, negative = above */
+  return Math.max(0, base + delta * base);
+}
+
+function calcOABonusPool(headcount) {
+  const hc = headcount !== undefined ? headcount : Math.round(avg30DayHeadcount());
+  return daysSinceLastOA() * calcDailyRate(hc);
+}
+
+function calcOABonusPerTeammate(headcount) {
+  const hc   = headcount !== undefined ? headcount : Math.round(avg30DayHeadcount());
+  const pool = calcOABonusPool(hc);
+  if (!hc) return 0;
+  return Math.round(pool / hc);
+}
+
+function calcTotalOABonus() {
+  return calcOABonusPool();
+}
+
+/* ── Full date + time formatter ── */
+function fmtDateTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleDateString('en-US',
+    { weekday:'short', month:'short', day:'numeric', year:'numeric' })
+    + ' · ' + d.toLocaleTimeString('en-US',
+    { hour:'numeric', minute:'2-digit', second:'2-digit', hour12:true });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   BOARD LAYOUT
+   Static grid positions + rotation for all 40 spaces.
+   Merged with SPACE_CONFIG at render time.
+   type: corner | property | chest | chance | railroad | utility | tax
+════════════════════════════════════════════════════════════════════ */
+const BOARD_LAYOUT = [
+  // BOTTOM ROW (rot:0)
+  {id:0,  type:'corner',   rot:0,   icon:'🚂', label:'GO'},
+  {id:1,  type:'property', rot:0  },
+  {id:2,  type:'chest',    rot:0,   label:'Community Chest'},
+  {id:3,  type:'property', rot:0  },
+  {id:4,  type:'tax',      rot:0,   label:'Income Tax'},
+  {id:5,  type:'railroad', rot:0,   label:'Reading Railroad'},
+  {id:6,  type:'property', rot:0  },
+  {id:7,  type:'chance',   rot:0,   label:'Chance'},
+  {id:8,  type:'property', rot:0  },
+  {id:9,  type:'property', rot:0  },
+  {id:10, type:'corner',   rot:0,   icon:'⛓️', label:'Jail / Visiting'},
+  // LEFT COL (rot:-90)
+  {id:11, type:'property', rot:-90 },
+  {id:12, type:'utility',  rot:-90, label:'Electric Company'},
+  {id:13, type:'property', rot:-90 },
+  {id:14, type:'property', rot:-90 },
+  {id:15, type:'railroad', rot:-90, label:'Penn Railroad'},
+  {id:16, type:'property', rot:-90 },
+  {id:17, type:'chest',    rot:-90, label:'Community Chest'},
+  {id:18, type:'property', rot:-90 },
+  {id:19, type:'property', rot:-90 },
+  {id:20, type:'corner',   rot:-90, icon:'🅿️', label:'Free Parking'},
+  // TOP ROW (rot:180)
+  {id:21, type:'property', rot:180 },
+  {id:22, type:'chance',   rot:180, label:'Chance'},
+  {id:23, type:'property', rot:180 },
+  {id:24, type:'property', rot:180 },
+  {id:25, type:'railroad', rot:180, label:'B&O Railroad'},
+  {id:26, type:'property', rot:180 },
+  {id:27, type:'property', rot:180 },
+  {id:28, type:'utility',  rot:180, label:'Water Works'},
+  {id:29, type:'property', rot:180 },
+  {id:30, type:'corner',   rot:180, icon:'👮', label:'Go To Jail'},
+  // RIGHT COL (rot:90)
+  {id:31, type:'property', rot:90  },
+  {id:32, type:'property', rot:90  },
+  {id:33, type:'chest',    rot:90,  label:'Community Chest'},
+  {id:34, type:'property', rot:90  },
+  {id:35, type:'railroad', rot:90,  label:'Short Line RR'},
+  {id:36, type:'chance',   rot:90,  label:'Chance'},
+  {id:37, type:'property', rot:90  },
+  {id:38, type:'tax',      rot:90,  label:'Luxury Tax'},
+  {id:39, type:'property', rot:90  },
+];
+
+/* Merge layout + config into one unified SPACES array */
+const SPACES = BOARD_LAYOUT.map(bl => {
+  const sc = SPACE_BY_ID[bl.id] || {};
+  return { ...bl, ...sc };
+});
+
+/* DONE: property spaces where at least one employee has earned a star */
+const DONE = new Set(
+  SPACES
+    .filter(s => s.type === 'property' && s.active && s.star_threshold > 0)
+    .filter(s => EMPLOYEES.some(e =>
+      Math.floor(completionCount(e, s.entity) / s.star_threshold) > 0
+    ))
+    .map(s => s.id)
+);
+
+const TYPE_LABELS = {
+  property:'OA Task', railroad:'Railroad Bonus', utility:'Utility Bonus',
+  chest:'Community Chest', chance:'Chance', tax:'Tax Space',
+};
+
+function gridPos(id) {
+  if (id >= 0  && id <= 10) return {row:11,    col:11-id };
+  if (id >= 11 && id <= 20) return {row:21-id, col:1     };
+  if (id >= 21 && id <= 30) return {row:1,     col:id-19 };
+  if (id >= 31 && id <= 39) return {row:id-29, col:11    };
+}
+
+function buildCorner(s) {
+  const pos = gridPos(s.id);
+  const div = document.createElement('div');
+  div.className = 'ob-corner';
+  div.style.gridRow = pos.row; div.style.gridColumn = pos.col;
+  div.innerHTML = `<div class="c-icon">${s.icon}</div><div class="c-label">${s.label}</div>`;
+  return div;
+}
+
+/* ── US-04 · US-05 · US-06 · US-07 ───────────────────────────────────
+   buildProperty handles three visual states:
+
+   1. UNRELEASED (US-04): active=false
+      Band dimmed, name muted, release date on line 2.
+      No dots, no stars, no pts.
+
+   2. ACTIVE — TEAM VIEW (US-05 + US-06):
+      Full band with 4 dots, name, then MAYOR block (avatar + label),
+      total team PTS EARNED at bottom.
+
+   Mayor is computed via getMayor(spaceId) → spaceLeaderboard(),
+   tiebreak = earliest start_date (US-07).
+──────────────────────────────────────────────────────────────────── */
+function buildProperty(s) {
+  const pos    = gridPos(s.id);
+  const isSide = (s.rot === 90 || s.rot === -90);
+  const sc     = SPACE_BY_ID[s.id] || s;
+  const isActive = !!sc.active;
+
+  const div = document.createElement('div');
+  div.dataset.id  = s.id;
+  div.dataset.rot = s.rot;
+  div.style.gridRow    = pos.row;
+  div.style.gridColumn = pos.col;
+
+  /* ══════════════════════════════════════════════
+     US-04 — UNRELEASED TILE
+  ══════════════════════════════════════════════ */
+  if (!isActive) {
+    div.className = `space unreleased${isSide ? ' ob-side' : ''}`;
+
+    const inner = document.createElement('div');
+    inner.className = 'inner';
+
+    /* Dimmed color band — no dots */
+    const band = document.createElement('div');
+    band.className = 'prop-band-unreleased';
+    band.style.background = sc.color || 'var(--surface3)';
+
+    /* Name + release date block */
+    const nameBlock = document.createElement('div');
+    nameBlock.className = 'prop-name-unreleased';
+    nameBlock.style.flex = '1';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'pnu-label';
+    lbl.textContent = (sc.label || s.label || '').toUpperCase();
+
+    const date = document.createElement('div');
+    date.className = 'pnu-date';
+    date.textContent = releaseDisplay(sc);
+
+    nameBlock.appendChild(lbl);
+    nameBlock.appendChild(date);
+
+    inner.appendChild(band);
+    inner.appendChild(nameBlock);
+    div.appendChild(inner);
+    div.addEventListener('click', () => openPanel(s));
+    return div;
+  }
+
+  /* ══════════════════════════════════════════════
+     US-05 + US-06 — ACTIVE TILE
+     Branches on activeView:
+       'team'  → mayor + team PTS EARNED  (US-06)
+       emp.id  → personal dots + stars    (US-08)
+  ══════════════════════════════════════════════ */
+  const hasStar = DONE.has(s.id);
+  const mayor   = getMayor(s.id);
+  const teamPts = totalPointsEarned(s.id);
+
+  /* For individual view — find the active employee */
+  const viewEmp  = activeView !== 'team'
+    ? EMPLOYEES.find(e => e.id === activeView) : null;
+  const empCount = viewEmp ? completionCount(viewEmp, sc.entity) : 0;
+  const empFilled = Math.min(empCount, 4);
+  const empStars  = viewEmp ? starsEarned(viewEmp, s.id) : 0;
+
+  /* Dot fill: team view = all completions capped at 4,
+               individual = that employee's completions capped at 4 */
+  const total  = totalCompletions(s.id);
+  const filled = viewEmp ? empFilled : Math.min(total, 4);
+
+  div.className = `space ob-property${hasStar ? ' completed' : ''}${isSide ? ' ob-side' : ''}`;
+
+  const inner = document.createElement('div');
+  inner.className = 'inner';
+
+  /* ── Band: 4 dots ── */
+  const band = document.createElement('div');
+  band.className = 'prop-band';
+  band.style.background = sc.color || s.color;
+  const dotsWrap = document.createElement('div');
+  dotsWrap.className = 'band-dots';
+  for (let i = 0; i < 4; i++) {
+    const dot = document.createElement('span');
+    dot.className = `band-dot ${i < filled ? 'filled' : 'empty'}`;
+    dotsWrap.appendChild(dot);
+  }
+  band.appendChild(dotsWrap);
+
+  /* ── Name ── */
+  const name = document.createElement('div');
+  name.className = 'prop-name';
+  name.textContent = (sc.label || s.label || '').toUpperCase();
+
+  /* ── Middle row: Mayor (team) or Stars (individual) ── */
+  const middleRow = document.createElement('div');
+
+  if (viewEmp) {
+    /* US-08 — INDIVIDUAL VIEW: show personal star progress */
+    middleRow.className = 'prop-stars';
+    if (sc.star_threshold > 0) {
+      if (empStars > 0) {
+        for (let i = 0; i < empStars; i++) {
+          const st = document.createElement('span');
+          st.className = 'prop-star-earned'; st.textContent = '★';
+          middleRow.appendChild(st);
+        }
+      } else {
+        const st = document.createElement('span');
+        st.className = 'prop-star-empty'; st.textContent = '☆';
+        middleRow.appendChild(st);
+      }
+    }
+  } else {
+    /* US-06 — TEAM VIEW: show mayor */
+    middleRow.className = 'mayor-row';
+    if (mayor) {
+      const av = document.createElement('div');
+      av.className = 'mayor-avatar';
+      const initials = mayor.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+      av.textContent = initials;
+      if (mayor.avatar_url) {
+        const img = document.createElement('img');
+        img.src = mayor.avatar_url;
+        img.style.cssText = 'width:100%;height:100%;border-radius:50%;object-fit:cover;';
+        img.onload  = () => { av.textContent = ''; av.appendChild(img); };
+        img.onerror = () => {};
+      }
+      const mayorLbl = document.createElement('div');
+      mayorLbl.className = 'mayor-label';
+      mayorLbl.textContent = 'MAYOR';
+      middleRow.appendChild(av);
+      middleRow.appendChild(mayorLbl);
+    } else {
+      const st = document.createElement('span');
+      st.className = 'prop-star-empty'; st.textContent = '☆';
+      middleRow.appendChild(st);
+    }
+  }
+
+  /* ── PTS row: team = total earned, individual = personal earned ── */
+  const pts = document.createElement('div');
+  pts.className = 'prop-pts';
+  if (viewEmp) {
+    const personalPts = empCount * (sc.pts_per_completion || 0);
+    pts.textContent = personalPts > 0
+      ? `${personalPts} PTS EARNED` : `${sc.pts_per_completion || 0} PTS`;
+  } else {
+    pts.textContent = teamPts > 0
+      ? `${teamPts} PTS EARNED` : `${sc.pts_per_completion || 0} PTS`;
+  }
+
+  inner.appendChild(band);
+  inner.appendChild(name);
+  inner.appendChild(middleRow);
+  inner.appendChild(pts);
+  div.appendChild(inner);
+  div.addEventListener('click', () => openPanel(s));
+  return div;
+}
+
+function buildPlain(s) {
+  const pos    = gridPos(s.id);
+  const isSide = (s.rot === 90 || s.rot === -90);
+
+  const div = document.createElement('div');
+  div.className = `space ob-plain${isSide ? ' ob-side' : ''}`;
+  div.dataset.id = s.id; div.dataset.rot = s.rot;
+  div.style.gridRow = pos.row; div.style.gridColumn = pos.col;
+
+  const inner = document.createElement('div');
+  inner.className = 'inner';
+
+  const name = document.createElement('div');
+  name.className = 'plain-name';
+  name.textContent = (s.label || '').toUpperCase();
+
+  const pts = document.createElement('div');
+  pts.className = 'plain-pts';
+  pts.textContent = (s.pts_per_completion || s.pts || 0) > 0
+    ? (s.pts_per_completion || s.pts) + ' PTS' : '';
+
+  inner.appendChild(name); inner.appendChild(pts);
+  div.appendChild(inner);
+  div.addEventListener('click', () => openPanel(s));
+  return div;
+}
+
+function applyRotations() {
+  document.querySelectorAll('.space[data-rot]').forEach(el => {
+    const rot   = parseInt(el.dataset.rot);
+    const inner = el.querySelector('.inner');
+    if (!inner) return;
+    const cw = el.offsetWidth, ch = el.offsetHeight;
+    if (!cw || !ch) return;
+    if (rot === 0) {
+      inner.style.cssText = `position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:stretch;transform:rotate(0deg);`;
+    } else if (rot === 180) {
+      inner.style.cssText = `position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:stretch;transform:rotate(180deg);`;
+    } else {
+      const adj = rot === -90 ? 90 : -90;
+      inner.style.cssText = `position:absolute;top:50%;left:50%;width:${ch}px;height:${cw}px;display:flex;flex-direction:column;align-items:stretch;transform:translate(-50%,-50%) rotate(${adj}deg);`;
+    }
+  });
+}
+
+/* ── PANEL — US-08 (individual) + US-10 (team leaderboard) ──────── */
+function openPanel(s) {
+  document.querySelectorAll('.space.active-sel').forEach(el => el.classList.remove('active-sel'));
+  const el = document.querySelector(`.space[data-id="${s.id}"]`);
+  if (el) el.classList.add('active-sel');
+
+  const sc       = SPACE_BY_ID[s.id] || s;
+  const entity   = sc.entity || `ollieboard.oa_space_${s.id}`;
+  const isActive = !!sc.active;
+
+  /* Who is viewing? */
+  const viewEmp = activeView !== 'team'
+    ? EMPLOYEES.find(e => e.id === activeView) : null;
+
+  document.getElementById('panelColorBar').style.background = sc.color || 'var(--gold-dim)';
+  document.getElementById('panelTitle').textContent  = (sc.label || s.label).toUpperCase();
+  document.getElementById('panelType').textContent   =
+    (viewEmp ? `${viewEmp.name.split(' ')[0]}'s View · ` : 'Team View · ') +
+    (TYPE_LABELS[s.type] || s.type);
+  document.getElementById('panelStatus').innerHTML   =
+    isActive
+      ? `<span class="status-badge passing"><span class="status-dot"></span>Active</span>`
+      : `<span class="status-badge incomplete"><span class="status-dot"></span>Coming ${releaseDisplay(sc)}</span>`;
+
+  /* ── Shared: category tag ── */
+  const categoryHTML = sc.color ? `
+    <div class="detail-row">
+      <div class="detail-label">Job Category</div>
+      <span class="category-tag" style="color:${sc.color};border-color:${sc.color}44">
+        <span class="category-dot" style="background:${sc.color}"></span>${TYPE_LABELS[s.type]}
+      </span>
+    </div><div class="divider"></div>` : '';
+
+  /* ── Shared: description ── */
+  const descHTML = `
+    <div class="detail-row">
+      <div class="detail-label">Description</div>
+      <div class="detail-value">${sc.desc || '—'}</div>
+    </div><div class="divider"></div>`;
+
+  /* ── Shared: entity chip ── */
+  const entityHTML = `
+    <div class="detail-row">
+      <div class="detail-label">OllieBoard Entity</div>
+      <div class="entity-chip">
+        <span class="entity-dot ${isActive ? 'live' : ''}"></span>${entity}
+      </div>
+    </div>`;
+
+  if (!isActive) {
+    /* US-11: unreleased space — minimal panel */
+    document.getElementById('panelBody').innerHTML =
+      categoryHTML + descHTML + entityHTML;
+    document.getElementById('sidePanel').classList.add('open');
+    return;
+  }
+
+  /* ══════════════════════════════════════════════
+     TEAM VIEW panel — tab 1: Leaderboard, tab 2: All Completions (paginated)
+  ══════════════════════════════════════════════ */
+  if (!viewEmp) {
+    const board   = spaceLeaderboard(s.id);
+    const ptTotal = totalPointsEarned(s.id);
+    const medals  = ['🥇','🥈','🥉'];
+
+    /* ── Tab 1: Leaderboard rows ── */
+    const lbRowsHTML = board.length > 0
+      ? board.map((row, i) => {
+          const rank     = i + 1;
+          const cls      = rank <= 3 ? ` lb-${rank}` : '';
+          const medal    = medals[i] || `${rank}`;
+          const stars    = starsEarned(row.emp, s.id);
+          const starsStr = stars > 0 ? '★'.repeat(stars) : '';
+          const initials = row.emp.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+          const avatarInner = row.emp.avatar_url
+            ? `<img src="${row.emp.avatar_url}" onerror="this.style.display='none';this.parentNode.textContent='${initials}'">`
+            : initials;
+          return `
+            <div class="lb-row${cls}">
+              <span class="lb-rank">${medal}</span>
+              <div class="lb-avatar">${avatarInner}</div>
+              <div class="lb-name">${row.emp.name}</div>
+              ${i === 0 ? '<span class="lb-mayor-badge">Mayor</span>' : ''}
+              ${starsStr ? `<span class="lb-stars">${starsStr}</span>` : ''}
+              <div>
+                <span class="lb-count">${row.count}</span>
+                <span class="lb-count-label">completions</span>
+              </div>
+            </div>`;
+        }).join('')
+      : `<div class="hist-empty">No completions yet</div>`;
+
+    /* Star progress — leader */
+    const leader  = board[0];
+    const starHTML = sc.star_threshold > 0 && leader ? `
+      <div class="detail-row">
+        <div class="detail-label">Gold Star Progress — ${leader.emp.name} (Leader)</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+          <div style="flex:1;background:var(--surface3);border-radius:4px;height:6px;overflow:hidden;">
+            <div style="height:100%;background:var(--gold);border-radius:4px;
+              width:${Math.min(100,Math.round(leader.count/sc.star_threshold*100))}%;
+              transition:width 0.6s;"></div>
+          </div>
+          <span style="font-size:0.72rem;font-weight:800;color:${starsEarned(leader.emp,s.id)>0?'var(--gold)':'var(--text-dim)'};">
+            ${starsEarned(leader.emp,s.id)>0 ? '★ Earned' : `${leader.count} / ${sc.star_threshold}`}
+          </span>
+        </div>
+        <div style="font-size:0.48rem;color:var(--text-dim);margin-top:4px;letter-spacing:0.1em;text-transform:uppercase;">
+          Completions to earn gold star
+        </div>
+      </div>` : '';
+
+    /* ── All completions across all employees, newest first ── */
+    const allEntries = EMPLOYEES.flatMap(emp =>
+      emp.completions
+        .filter(c => c.entity === entity)
+        .map(c => ({ emp, timestamp: c.timestamp }))
+    ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    /* Build tab HTML — tab 2 content rendered by JS pagination after inject */
+    const panelHTML = `
+      ${categoryHTML}
+      ${descHTML}
+      <div class="points-display">
+        <div class="points-icon">🏆</div>
+        <div>
+          <div class="points-num">${ptTotal}</div>
+          <div class="points-label">Total Points Earned Since Last OA</div>
+        </div>
+      </div>
+      <div class="panel-tabs">
+        <button class="panel-tab active" id="tabLb" onclick="switchTab('lb')">🏅 Leaderboard</button>
+        <button class="panel-tab" id="tabHist" onclick="switchTab('hist')">📋 All Completions (${allEntries.length})</button>
+      </div>
+      <div class="tab-pane active" id="paneLb">
+        <div class="leaderboard">${lbRowsHTML}</div>
+        <div class="divider"></div>
+        ${starHTML}
+        <div class="divider"></div>
+        ${entityHTML}
+      </div>
+      <div class="tab-pane" id="paneHist">
+        <div id="histList"></div>
+        <div class="pagination" id="histPagination"></div>
+        <div class="divider"></div>
+        ${entityHTML}
+      </div>`;
+
+    document.getElementById('panelBody').innerHTML = panelHTML;
+
+    /* Store completions on panel for pagination access */
+    const panel = document.getElementById('sidePanel');
+    panel._allEntries   = allEntries;
+    panel._histPage     = 0;
+    panel._histPageSize = 5;
+    panel._sc           = sc;
+    renderHistPage();          /* render first page immediately */
+
+  } else {
+    /* ══════════════════════════════════════════════
+       INDIVIDUAL VIEW panel — tab 1: Summary, tab 2: My Completions (paginated)
+    ══════════════════════════════════════════════ */
+    const empCount = completionCount(viewEmp, entity);
+    const empPts   = empCount * (sc.pts_per_completion || 0);
+    const empStars = starsEarned(viewEmp, s.id);
+    const nextStar = sc.star_threshold > 0
+      ? sc.star_threshold - (empCount % sc.star_threshold || sc.star_threshold) : null;
+
+    const starPct = sc.star_threshold > 0
+      ? Math.min(100, Math.round(
+          ((empCount % sc.star_threshold) || (empStars > 0 ? sc.star_threshold : 0))
+          / sc.star_threshold * 100))
+      : 0;
+
+    const myEntries = viewEmp.completions
+      .filter(c => c.entity === entity)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    const starHTML = sc.star_threshold > 0 ? `
+      <div class="detail-row">
+        <div class="detail-label">Gold Star Progress</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+          <div style="flex:1;background:var(--surface3);border-radius:4px;height:6px;overflow:hidden;">
+            <div style="height:100%;background:var(--gold);border-radius:4px;width:${starPct}%;transition:width 0.6s;"></div>
+          </div>
+          <span style="font-size:0.72rem;font-weight:800;color:${empStars>0?'var(--gold)':'var(--text-dim)'};">
+            ${empStars > 0 ? `${'★'.repeat(empStars)} Earned` : `${empCount % sc.star_threshold || 0} / ${sc.star_threshold}`}
+          </span>
+        </div>
+        ${nextStar && empStars === 0 ? `<div style="font-size:0.48rem;color:var(--text-dim);margin-top:4px;letter-spacing:0.1em;text-transform:uppercase;">${nextStar} more completion${nextStar!==1?'s':''} to next ★</div>` : ''}
+      </div>` : '';
+
+    const panelHTML = `
+      ${categoryHTML}
+      ${descHTML}
+      <div class="points-display">
+        <div class="points-icon">🏆</div>
+        <div>
+          <div class="points-num">${empPts}</div>
+          <div class="points-label">${viewEmp.name.split(' ')[0]}'s Points Since Last OA</div>
+        </div>
+      </div>
+      <div class="panel-tabs">
+        <button class="panel-tab active" id="tabLb" onclick="switchTab('lb')">⭐ Summary</button>
+        <button class="panel-tab" id="tabHist" onclick="switchTab('hist')">📋 My Completions (${myEntries.length})</button>
+      </div>
+      <div class="tab-pane active" id="paneLb">
+        ${starHTML}
+        <div class="divider"></div>
+        ${entityHTML}
+      </div>
+      <div class="tab-pane" id="paneHist">
+        <div id="histList"></div>
+        <div class="pagination" id="histPagination"></div>
+        <div class="divider"></div>
+        ${entityHTML}
+      </div>`;
+
+    document.getElementById('panelBody').innerHTML = panelHTML;
+
+    const panel = document.getElementById('sidePanel');
+    panel._allEntries   = myEntries.map(c => ({ emp: viewEmp, timestamp: c.timestamp }));
+    panel._histPage     = 0;
+    panel._histPageSize = 5;
+    panel._sc           = sc;
+    renderHistPage();
+  }
+
+  document.getElementById('sidePanel').classList.add('open');
+}
+
+/* ── Tab switching ── */
+function switchTab(tab) {
+  const lb   = document.getElementById('tabLb');
+  const hist = document.getElementById('tabHist');
+  const paneLb   = document.getElementById('paneLb');
+  const paneHist = document.getElementById('paneHist');
+  if (!lb || !hist) return;
+
+  if (tab === 'lb') {
+    lb.classList.add('active');   hist.classList.remove('active');
+    paneLb.classList.add('active'); paneHist.classList.remove('active');
+  } else {
+    hist.classList.add('active'); lb.classList.remove('active');
+    paneHist.classList.add('active'); paneLb.classList.remove('active');
+  }
+}
+
+/* ── Paginated history renderer ──
+   Reads panel._allEntries, panel._histPage, panel._histPageSize, panel._sc
+   Renders the current page of completion cards into #histList
+   and prev/next controls into #histPagination.               */
+function renderHistPage() {
+  const panel    = document.getElementById('sidePanel');
+  const entries  = panel._allEntries  || [];
+  const pageSize = panel._histPageSize || 5;
+  const page     = panel._histPage    || 0;
+  const sc       = panel._sc          || {};
+  const total    = entries.length;
+  const pages    = Math.max(1, Math.ceil(total / pageSize));
+  const start    = page * pageSize;
+  const slice    = entries.slice(start, start + pageSize);
+
+  const listEl = document.getElementById('histList');
+  const pgEl   = document.getElementById('histPagination');
+  if (!listEl || !pgEl) return;
+
+  /* Render cards for this page */
+  listEl.innerHTML = slice.length > 0
+    ? slice.map(({ emp, timestamp }) => `
+        <div class="hist-card passing">
+          <div class="hist-top">
+            <span class="hist-check passing">✓</span>
+            <span class="hist-status-label passing">Task Complete</span>
+            <span class="hist-pts">+${sc.pts_per_completion || 0}</span>
+          </div>
+          <div class="hist-task-text">${sc.label || ''} — ${sc.desc ? sc.desc.split('—')[0].trim() : 'Completed'}</div>
+          <div class="hist-subtitle">${TYPE_LABELS[sc.type || 'property'] || 'OA Task'}</div>
+          <div class="hist-employee">✓ ${emp.name}</div>
+          <div class="hist-datetime">${fmtDateTime(timestamp)}</div>
+        </div>`).join('')
+    : `<div class="hist-empty">No completions recorded yet</div>`;
+
+  /* Render pagination controls */
+  pgEl.innerHTML = total > pageSize ? `
+    <button class="pg-btn" onclick="changePage(-1)" ${page === 0 ? 'disabled' : ''}>← Prev</button>
+    <span class="pg-info">Page ${page + 1} of ${pages} &middot; ${total} total</span>
+    <button class="pg-btn" onclick="changePage(1)" ${page >= pages - 1 ? 'disabled' : ''}>Next →</button>
+  ` : `<span class="pg-info">${total} completion${total !== 1 ? 's' : ''}</span>`;
+}
+
+function changePage(delta) {
+  const panel  = document.getElementById('sidePanel');
+  const total  = (panel._allEntries || []).length;
+  const pages  = Math.max(1, Math.ceil(total / (panel._histPageSize || 5)));
+  panel._histPage = Math.min(pages - 1, Math.max(0, (panel._histPage || 0) + delta));
+  renderHistPage();
+  /* Scroll hist pane back to top */
+  const pane = document.getElementById('paneHist');
+  if (pane) pane.scrollTop = 0;
+}
+
+function closePanel() {
+  document.querySelectorAll('.space.active-sel').forEach(el => el.classList.remove('active-sel'));
+  document.getElementById('sidePanel').classList.remove('open');
+}
+document.getElementById('panelClose').addEventListener('click', closePanel);
+
+/* ════════════════════════════════════════════════════════════════════
+   US-09 · VIEW STATE
+   activeView: 'team' | emp.id string
+   All property tile rendering branches on this.
+════════════════════════════════════════════════════════════════════ */
+let activeView = 'team';   /* default: team view */
+
+/* ── Build employee pill strip ── */
+function buildEmpPills() {
+  const container = document.getElementById('empPills');
+  container.innerHTML = '';
+  EMPLOYEES.forEach(emp => {
+    const pill = document.createElement('button');
+    pill.className = `emp-pill${activeView === emp.id ? ' active' : ''}`;
+    pill.dataset.empId = emp.id;
+    pill.onclick = () => setView(emp.id);
+
+    /* Avatar */
+    const av = document.createElement('div');
+    av.className = 'emp-pill-avatar';
+    const initials = emp.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+    av.textContent = initials;
+    if (emp.avatar_url) {
+      const img = document.createElement('img');
+      img.src = emp.avatar_url;
+      img.onload  = () => { av.textContent = ''; av.appendChild(img); };
+      img.onerror = () => {};
+    }
+
+    /* Name (first name only for pill brevity) */
+    const lbl = document.createElement('span');
+    lbl.className = 'emp-pill-name';
+    lbl.textContent = emp.name.split(' ')[0];
+
+    pill.appendChild(av); pill.appendChild(lbl);
+    container.appendChild(pill);
+  });
+}
+
+/* ── Switch view and re-render all property tiles ── */
+function setView(view) {
+  activeView = view;
+
+  /* Update team button state */
+  document.getElementById('btnTeam').classList.toggle('active', view === 'team');
+
+  /* Update pill active states */
+  document.querySelectorAll('.emp-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.empId === view);
+  });
+
+  /* Update label */
+  const label = document.getElementById('viewToggleLabel');
+  if (view === 'team') {
+    label.textContent = 'Viewing: Team';
+  } else {
+    const emp = EMPLOYEES.find(e => e.id === view);
+    label.textContent = `Viewing: ${emp ? emp.name.split(' ')[0] : view}`;
+  }
+
+  /* Close panel — stale content */
+  document.getElementById('sidePanel').classList.remove('open');
+
+  /* Re-render all property spaces in-place */
+  rerenderPropertySpaces();
+}
+
+/* ── Re-render property tiles without full board rebuild ──
+   Finds each existing .space element, replaces it with a freshly
+   built tile that reflects the current activeView.               */
+function rerenderPropertySpaces() {
+  SPACES.forEach(s => {
+    if (s.type !== 'property') return;
+    const existing = document.querySelector(`.space[data-id="${s.id}"]`);
+    if (!existing) return;
+    const fresh = buildProperty(s);
+    existing.replaceWith(fresh);
+  });
+  /* Re-apply rotations to the new elements */
+  requestAnimationFrame(applyRotations);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   US-12 + US-13 · INTRO SCREEN LOGIC
+════════════════════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════════════════════════════
+   US-12 REEL ENGINE
+   Digit-reel slot machine with:
+   - Individual vertical cells per digit
+   - Alternating up/down tumble directions per cell
+   - Right-to-left staggered lock order
+   - Elastic overshoot (spring) on landing
+   - Motion blur during spin via CSS filter
+   - Web Audio API click/tick sounds
+   - Headcount-last reveal sequence with bonus recalc
+════════════════════════════════════════════════════════════════════ */
+
+/* ── Audio context (lazy init on first user gesture or show) ── */
+let _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  }
+  return _audioCtx;
+}
+
+/* ── Single mechanical click sound ── */
+function playTick(freq = 180, vol = 0.18, dur = 0.04) {
+  const ctx = getAudioCtx(); if (!ctx) return;
+  const osc  = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.type      = 'square';
+  osc.frequency.setValueAtTime(freq, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.4, ctx.currentTime + dur);
+  gain.gain.setValueAtTime(vol, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + dur + 0.01);
+}
+
+/* ── Lock sound — heavier thunk when digit settles ── */
+function playLock(index = 0) {
+  const ctx = getAudioCtx(); if (!ctx) return;
+  /* Pitched descending across digits: right=high, left=low */
+  const baseFreq = 320 - index * 18;
+  const osc  = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.3, ctx.currentTime + 0.12);
+  gain.gain.setValueAtTime(0.3, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.14);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.16);
+}
+
+/* ── Final chime when all reels locked ── */
+function playChime() {
+  const ctx = getAudioCtx(); if (!ctx) return;
+  [523, 659, 784].forEach((f, i) => {
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = f;
+    const t = ctx.currentTime + i * 0.1;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.22, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    osc.start(t); osc.stop(t + 0.55);
+  });
+}
+
+/* ── Build reel cell DOM for a single digit ── */
+function buildReelCell(initialDigit = 0) {
+  const cell  = document.createElement('div');
+  cell.className = 'reel-cell';
+
+  const maskT = document.createElement('div'); maskT.className = 'reel-mask-top';
+  const maskB = document.createElement('div'); maskB.className = 'reel-mask-bottom';
+  const strip = document.createElement('div'); strip.className = 'reel-strip';
+
+  /* Pre-populate strip with digits 0-9 twice (for wrap-around) */
+  for (let pass = 0; pass < 3; pass++) {
+    for (let d = 0; d < 10; d++) {
+      const el = document.createElement('div');
+      el.className = 'reel-digit'; el.textContent = d;
+      strip.appendChild(el);
+    }
+  }
+
+  cell.appendChild(strip);
+  cell.appendChild(maskT);
+  cell.appendChild(maskB);
+  cell._strip        = strip;
+  cell._currentDigit = initialDigit;
+  return cell;
+}
+
+/* ── Build or rebuild a full reel display for a number ──
+   Renders digit cells + comma separators into container el. */
+/* ── Build or rebuild a full reel display ──────────────────────────
+   Commas are inserted AFTER each digit whose position from the right
+   is a non-zero multiple of 3 — e.g. 1,950 → [1][,][9][5][0].
+   For values < 1000 no comma is ever inserted.
+   Rebuilds completely on every call so commas always track value.
+─────────────────────────────────────────────────────────────────── */
+function buildReelDisplay(containerId, value) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+
+  const rounded = Math.max(0, Math.round(value));
+  const digits  = String(rounded).split('');
+  const total   = digits.length;
+
+  digits.forEach((ch, i) => {
+    const fromRight = total - 1 - i;
+
+    const cell = buildReelCell(parseInt(ch));
+    cell.dataset.digitIndex = i;
+    cell.dataset.fromRight  = fromRight;
+    container.appendChild(cell);
+
+    /* Insert comma AFTER this digit if the position from right
+       is a non-zero multiple of 3 (e.g. thousands separator) */
+    if (fromRight > 0 && fromRight % 3 === 0) {
+      const sep = document.createElement('span');
+      sep.className = 'reel-sep'; sep.textContent = ',';
+      container.appendChild(sep);
+    }
+  });
+}
+
+/* ── Animate one reel cell to a target digit ──────────────────────
+   KEY FIXES:
+   1. cellH passed in (measured once after fonts.ready, not per-cell)
+   2. Animates DIRECTLY to final position — no secondary snap
+   3. Per-digit random spins (2–6), duration (700–1600ms), delay jitter
+   4. Velocity blur: CSS keyframe injected per animation
+   5. Elastic overshoot cubic-bezier on the single animation
+   6. will-change: transform already on .reel-strip
+─────────────────────────────────────────────────────────────────── */
+function animateReelCell(cell, targetDigit, direction, baseDelay, cellH, onLock) {
+  const strip   = cell._strip;
+  const current = (cell._currentDigit !== undefined) ? cell._currentDigit : 0;
+
+  /* Per-digit randomness — digits feel independent */
+  const spins   = 2 + Math.floor(Math.random() * 5);       /* 2–6 full cycles */
+  const dur     = 700  + Math.random() * 900;               /* 700–1600ms */
+  const jitter  = (Math.random() - 0.5) * 80;              /* ±80ms jitter */
+  const delay   = Math.max(0, baseDelay + jitter);
+
+  /* Step count: full rotations + steps to reach targetDigit in direction */
+  let steps;
+  if (direction === 'up') {
+    const fwd = (targetDigit - current + 10) % 10;
+    steps = spins * 10 + (fwd === 0 ? 10 : fwd);
+  } else {
+    const back = (current - targetDigit + 10) % 10;
+    steps = spins * 10 + (back === 0 ? 10 : back);
+  }
+
+  /* FINAL offset — this is where we animate TO, directly.
+     The strip starts positioned at -current*cellH.
+     Going 'up' means strip moves negative (more -Y).
+     Going 'down' means strip moves positive (less -Y).
+     After `steps` digits the strip is at -(current ± steps)*cellH,
+     which modulo 30 digits lands on targetDigit in the third pass. */
+  const startY = -current * cellH;
+  const endY   = direction === 'up'
+    ? startY - steps * cellH
+    : startY + steps * cellH;
+
+  /* 1. Snap to start position, no transition */
+  strip.style.transition = 'none';
+  strip.style.transform  = `translateY(${startY}px)`;
+  void strip.offsetHeight; /* force reflow */
+
+  setTimeout(() => {
+    /* 2. Apply motion blur (direction-aware) */
+    cell.style.filter = direction === 'up'
+      ? 'blur(3px) brightness(1.5)'
+      : 'blur(3px) brightness(0.6)';
+
+    /* 3. Tick sounds during spin */
+    const tickCount = spins * 8;
+    for (let t = 0; t < tickCount; t++) {
+      setTimeout(() => playTick(130 + Math.random() * 120, 0.08),
+        (dur * 0.85 / tickCount) * t);
+    }
+
+    /* 4. Single animation directly to endY with elastic cubic-bezier.
+          The elastic bezier (0.175, 0.885, 0.32, 1.275) provides the
+          overshoot — no second transition needed. This IS the snap + bounce. */
+    strip.style.transition =
+      `transform ${dur}ms cubic-bezier(0.175, 0.885, 0.32, 1.275)`;
+    strip.style.transform  = `translateY(${endY}px)`;
+
+    /* 5. Clear blur halfway through spin */
+    setTimeout(() => { cell.style.filter = 'none'; }, dur * 0.6);
+
+    /* 6. After animation: update state, play lock sound, fire callback */
+    setTimeout(() => {
+      /* Normalise position to the equivalent digit in pass 0
+         (so future animations have a consistent starting point) */
+      strip.style.transition = 'none';
+      strip.style.transform  = `translateY(${-targetDigit * cellH}px)`;
+      cell._currentDigit = targetDigit;
+      void strip.offsetHeight;
+
+      playLock(parseInt(cell.dataset.fromRight || 0));
+      if (onLock) onLock();
+    }, dur + 60); /* +60ms buffer after transition completes */
+
+  }, delay);
+}
+
+/* ── Animate a full reel display to a new number ──────────────────
+   Measures cellH ONCE from a real cell after layout.
+   Locks right-to-left with staggered delays.
+─────────────────────────────────────────────────────────────────── */
+function animateReelTo(containerId, newValue, onComplete) {
+  const container = document.getElementById(containerId);
+  if (!container) { if (onComplete) onComplete(); return; }
+
+  const rounded = Math.max(0, Math.round(newValue));
+  const newStr  = String(rounded);
+  const cells   = [...container.querySelectorAll('.reel-cell')];
+
+  /* Always rebuild when digit count changes so comma positions are correct.
+     Preserve _currentDigit on existing cells so animation starts from
+     the right place. */
+  if (cells.length !== newStr.length) {
+    /* Save current digit state before rebuild */
+    const prevDigits = cells.map(c => c._currentDigit || 0);
+
+    buildReelDisplay(containerId, rounded);
+
+    /* Restore digit state on new cells (pad/trim as needed) */
+    const newCells = [...container.querySelectorAll('.reel-cell')];
+    newCells.forEach((cell, i) => {
+      /* Align from right: carry over the digit that was in that position */
+      const prevIdx = prevDigits.length - newCells.length + i;
+      cell._currentDigit = (prevIdx >= 0 && prevIdx < prevDigits.length)
+        ? prevDigits[prevIdx] : 0;
+      if (cell._strip) {
+        cell._strip.style.transition = 'none';
+        /* Position strip at the preserved current digit */
+        const cellH = cell.getBoundingClientRect().height || 62;
+        cell._strip.style.transform =
+          `translateY(${-(cell._currentDigit) * cellH}px)`;
+      }
+    });
+
+    return setTimeout(() => animateReelTo(containerId, rounded, onComplete), 60);
+  }
+
+  /* Measure cellH from actual painted DOM */
+  const cellH = cells.length > 0 ? cells[0].getBoundingClientRect().height : 0;
+  if (cellH === 0) {
+    return requestAnimationFrame(() =>
+      setTimeout(() => animateReelTo(containerId, rounded, onComplete), 80));
+  }
+
+  const digits = newStr.split('').map(Number);
+  const total  = cells.length;
+  let   locked = 0;
+
+  /* Singles lock first (revIdx 0 = rightmost), then tens, hundreds left→right.
+     This is the correct mechanical odometer order. */
+  cells.slice().reverse().forEach((cell, revIdx) => {
+    const targetDigit = digits[total - 1 - revIdx];
+    const direction   = revIdx % 2 === 0 ? 'up' : 'down';
+    /* Singles (revIdx 0) = delay 0, tens (revIdx 1) = delay 150, etc. */
+    const baseDelay   = revIdx * 150;
+
+    animateReelCell(cell, targetDigit, direction, baseDelay, cellH, () => {
+      locked++;
+      if (locked === total && onComplete) onComplete();
+    });
+  });
+}
+
+/* ── Flash a reel to a new value instantly — no casino spin ─────────
+   Used in the education sequence so numbers update cleanly and
+   the focus stays on understanding the headcount effect.
+   Rebuilds if digit count changes (commas stay correct).
+─────────────────────────────────────────────────────────────────── */
+function flashReelTo(containerId, newValue) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const rounded = Math.max(0, Math.round(newValue));
+  const newStr  = String(rounded);
+  const cells   = [...container.querySelectorAll('.reel-cell')];
+
+  if (cells.length !== newStr.length) {
+    buildReelDisplay(containerId, rounded);
+    /* Immediately position all new cells at their target digit */
+    const newCells = [...container.querySelectorAll('.reel-cell')];
+    const cellH    = newCells.length > 0
+      ? newCells[0].getBoundingClientRect().height || 62 : 62;
+    newStr.split('').forEach((ch, i) => {
+      const d = parseInt(ch);
+      const c = newCells[i];
+      if (!c) return;
+      c._currentDigit = d;
+      c._strip.style.transition = 'none';
+      c._strip.style.transform  = `translateY(${-d * cellH}px)`;
+    });
+    return;
+  }
+
+  const cellH = cells.length > 0
+    ? cells[0].getBoundingClientRect().height || 62 : 62;
+
+  newStr.split('').forEach((ch, i) => {
+    const d = parseInt(ch);
+    const c = cells[i];
+    if (!c) return;
+    c._currentDigit = d;
+    c._strip.style.transition = 'transform 200ms ease-out';
+    c._strip.style.transform  = `translateY(${-d * cellH}px)`;
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   WEB HAPTICS — inlined from github.com/lochie/web-haptics
+   Patterns: buzz, success, error, nudge (from patterns.ts)
+   Uses navigator.vibrate() where supported (mobile devices).
+   Falls back silently on desktop.
+════════════════════════════════════════════════════════════════════ */
+const HAPTIC_PATTERNS = {
+  buzz:    [1000],                              /* 1000ms continuous */
+  success: [30, 60, 40],                        /* ascending double-tap */
+  error:   [40, 40, 40, 40, 40, 40, 50],       /* three rapid harsh taps */
+  nudge:   [80, 80, 50],                        /* two quick taps with pause */
+};
+
+function haptic(name) {
+  if (typeof navigator === 'undefined' || !navigator.vibrate) return;
+  const pattern = HAPTIC_PATTERNS[name];
+  if (pattern) navigator.vibrate(pattern);
+}
+
+/* ── Headcount change badge ──────────────────────────────────────────
+   type: 'alumni'   | 'new-hire' | 'today'
+   Alumni  = green  (productivity up, rate rises)
+   New hire = red   (productivity dn, rate drops)
+   Today   = gold   (returning to actual headcount)
+─────────────────────────────────────────────────────────────────── */
+function showHeadcountBadge(type) {
+  const wrap = document.getElementById('headcountBadge');
+  if (!wrap) return;
+
+  wrap.innerHTML = '';
+
+  const config = {
+    'alumni':   { icon: '🎓', label: '+ 1 New Alumni',    hapticName: 'success' },
+    'new-hire': { icon: '👤', label: '+ 1 New Employee',  hapticName: 'error'   },
+    'today':    { icon: '📍', label: "Today's Headcount", hapticName: 'nudge'   },
+  }[type] || { icon: '📍', label: type, hapticName: 'nudge' };
+
+  const inner = document.createElement('div');
+  inner.className = `hc-badge-inner ${type}`;
+  inner.innerHTML =
+    `<span class="hc-badge-icon">${config.icon}</span>` +
+    `<span>${config.label}</span>`;
+  wrap.appendChild(inner);
+
+  /* Haptic feedback */
+  haptic(config.hapticName);
+
+  /* Audio feedback */
+  const ctx = getAudioCtx();
+  if (ctx) {
+    if (type === 'alumni') {
+      [440, 660].forEach((f, i) => {
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.value = f;
+        const t = ctx.currentTime + i * 0.12;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.25, t + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        osc.start(t); osc.stop(t + 0.45);
+      });
+    } else if (type === 'new-hire') {
+      [520, 320].forEach((f, i) => {
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sawtooth'; osc.frequency.value = f;
+        const t = ctx.currentTime + i * 0.14;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.2, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        osc.start(t); osc.stop(t + 0.4);
+      });
+    } else if (type === 'today') {
+      /* Soft single tone — returning home */
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.value = 528;
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.55);
+    }
+  }
+
+  /* Auto-dismiss: fade up after 1.8s */
+  setTimeout(() => {
+    inner.style.animation = 'badgeFadeUp 0.45s ease-in both';
+    setTimeout(() => { wrap.innerHTML = ''; }, 500);
+  }, 1800);
+}
+
+/* ── Countdown ticker ── */
+let _introTimer   = null;
+let _countdownInt = null;
+
+function startIntroCountdown() {
+  let secs = 8;
+  const cdEl = document.getElementById('introCountdown');
+  if (cdEl) cdEl.textContent = `Closing in ${secs}…`;
+  _countdownInt = setInterval(() => {
+    secs--;
+    if (cdEl) cdEl.textContent = secs > 0 ? `Closing in ${secs}…` : 'Closing…';
+    if (secs <= 0) { clearInterval(_countdownInt); dismissIntro(); }
+  }, 1000);
+  _introTimer = setTimeout(dismissIntro, (secs + 1) * 1000);
+}
+
+/* ── Show intro (also used for replay) ── */
+async function showIntro() {
+  getAudioCtx();
+  haptic('buzz'); /* buzz haptic on initial page load */
+
+  const screen = document.getElementById('introScreen');
+  const replay = document.getElementById('replayIntroBtn');
+  screen.classList.remove('dismissing');
+  screen.style.display = 'flex';
+  replay.style.display = 'none';
+
+  const cdEl = document.getElementById('introCountdown');
+  if (cdEl) cdEl.textContent = 'Closing in 8…';
+  clearTimeout(_introTimer);
+  clearInterval(_countdownInt);
+
+  /* ── Compute all values at real headcount ── */
+  const teammates  = Math.round(avg30DayHeadcount());
+  const rate       = calcDailyRate(teammates);
+  const pool       = calcOABonusPool(teammates);
+  const perPerson  = teammates > 0 ? Math.round(pool / teammates) : 0;
+  const days       = daysSinceLastOA();
+
+  /* ── Dynamic subtexts ── */
+  const subPer  = document.getElementById('introSubPerPerson');
+  const subTot  = document.getElementById('introSubTotal');
+  const subRate = document.getElementById('introSubRate');
+
+  if (subTot) subTot.innerHTML =
+    `Days since last OA (${days}) × daily rate`;
+  if (subRate) subRate.textContent =
+    `$${STORE_CONFIG.daily_piggybank_rate}/day base · ` +
+    `+$${STORE_CONFIG.daily_piggybank_rate}/day per teammate below baseline of ${STORE_CONFIG.baseline_headcount}`;
+  if (subPer) subPer.textContent =
+    `Total pool ÷ ${teammates} teammate${teammates !== 1 ? 's' : ''}`;
+
+  /* ── GIF ── */
+  const gif = document.getElementById('introGif');
+  const ph  = document.getElementById('introGifPlaceholder');
+  if (gif && gif.src && !gif.src.endsWith('/')) {
+    gif.style.display = 'block';
+    if (ph) ph.style.display = 'none';
+  }
+
+  /* ── Build all 4 reels at correct digit width ── */
+  buildReelDisplay('reelTeammates', teammates);
+  buildReelDisplay('reelRate',      rate);
+  buildReelDisplay('reelPerPerson', perPerson);
+  buildReelDisplay('reelTotal',     pool);
+
+  /* ── Teammates + Rate: preload at final value immediately (no animation)
+     They don't change often — no casino excitement needed for them.
+     Total + PerPerson: zero out for the casino spin.               ── */
+  ['reelTeammates','reelRate'].forEach(id => {
+    const val = id === 'reelTeammates' ? teammates : rate;
+    document.getElementById(id)?.querySelectorAll('.reel-cell').forEach((cell, i) => {
+      const digit = parseInt(String(val)[i] || '0');
+      cell._currentDigit = digit;
+      if (cell._strip) {
+        cell._strip.style.transition = 'none';
+        /* Position strip directly at the final digit — visible immediately */
+        cell._strip.style.transform = `translateY(-${digit * (cell.offsetHeight || 62)}px)`;
+      }
+    });
+  });
+
+  ['reelTotal','reelPerPerson'].forEach(id => {
+    document.getElementById(id)?.querySelectorAll('.reel-cell').forEach(cell => {
+      cell._currentDigit = 0;
+      if (cell._strip) {
+        cell._strip.style.transition = 'none';
+        cell._strip.style.transform  = 'translateY(0px)';
+      }
+    });
+  });
+
+  /* ── Wait for fonts + layout ── */
+  await document.fonts.ready;
+  await new Promise(r => setTimeout(r, 400));
+
+  /* ── SEQUENCE ─────────────────────────────────────────────────────
+     Teammates + Rate already showing — no animation needed.
+
+     Phase 1: Total OA Bonus AND Per Teammate animate simultaneously.
+              Both use singles-first lock order (handled inside
+              animateReelTo). They fire at the same time.
+
+     Education sequence (instant flash — no casino spin):
+     Phase 2: Headcount → baseline+1 → rate drops to $0, pool→$0
+     Phase 3: Headcount → baseline-1 → rate rises to $50, pool doubles
+     Phase 4: Settle back to real values + chime + countdown
+  ──────────────────────────────────────────────────────────────────── */
+  const runSequence = () => {
+    let totalDone = false;
+    let perDone   = false;
+
+    const bothDone = () => {
+      if (!totalDone || !perDone) return;
+
+      /* ── PAUSE: real numbers breathe for 2s ── */
+      setTimeout(() => {
+
+        /* ── Phase A: alumni (headcount -1 → rate rises) ── */
+        showHeadcountBadge('alumni');
+        setTimeout(() => {
+          const downTeam = Math.max(1, teammates - 1);
+          const downRate = calcDailyRate(downTeam);
+          const downPool = calcOABonusPool(downTeam);
+          const downPer  = downTeam > 0 ? Math.round(downPool / downTeam) : 0;
+          flashReelTo('reelTeammates', downTeam);
+          flashReelTo('reelRate',      downRate);
+          flashReelTo('reelPerPerson', downPer);
+          flashReelTo('reelTotal',     downPool);
+          if (subPer) subPer.textContent =
+            `Total pool ÷ ${downTeam} teammate${downTeam !== 1 ? 's' : ''}`;
+
+          /* ── Phase B: back to baseline (Today's Headcount) ── */
+          setTimeout(() => {
+            showHeadcountBadge('today');
+            setTimeout(() => {
+              flashReelTo('reelTeammates', teammates);
+              flashReelTo('reelRate',      rate);
+              flashReelTo('reelPerPerson', perPerson);
+              flashReelTo('reelTotal',     pool);
+              if (subPer) subPer.textContent =
+                `Total pool ÷ ${teammates} teammate${teammates !== 1 ? 's' : ''}`;
+
+              /* ── Phase C: new-hire (headcount +1 → rate drops) ── */
+              setTimeout(() => {
+                showHeadcountBadge('new-hire');
+                setTimeout(() => {
+                  const upTeam = teammates + 1;
+                  const upRate = calcDailyRate(upTeam);
+                  const upPool = calcOABonusPool(upTeam);
+                  const upPer  = upTeam > 0 ? Math.round(upPool / upTeam) : 0;
+                  flashReelTo('reelTeammates', upTeam);
+                  flashReelTo('reelRate',      upRate);
+                  flashReelTo('reelPerPerson', upPer);
+                  flashReelTo('reelTotal',     upPool);
+                  if (subPer) subPer.textContent =
+                    `Total pool ÷ ${upTeam} teammate${upTeam !== 1 ? 's' : ''}`;
+
+                  /* ── Phase D: settle back to real values ── */
+                  setTimeout(() => {
+                    showHeadcountBadge('today');
+                    setTimeout(() => {
+                      flashReelTo('reelTeammates', teammates);
+                      flashReelTo('reelRate',      rate);
+                      flashReelTo('reelPerPerson', perPerson);
+                      flashReelTo('reelTotal',     pool);
+                      if (subPer) subPer.textContent =
+                        `Total pool ÷ ${teammates} teammate${teammates !== 1 ? 's' : ''}`;
+                      setTimeout(() => { playChime(); startIntroCountdown(); }, 800);
+                    }, 300);
+                  }, 2200);
+                }, 300);
+              }, 2000);
+            }, 300);
+          }, 2200);
+        }, 300);
+
+      }, 2000); /* 2s pause on real numbers */
+    };
+
+    /* Fire Total and PerPerson simultaneously — singles lock first in each */
+    animateReelTo('reelTotal', pool, () => {
+      totalDone = true; bothDone();
+    });
+    animateReelTo('reelPerPerson', perPerson, () => {
+      perDone = true; bothDone();
+    });
+  };
+
+  runSequence();
+}
+
+/* ── Dismiss intro ── */
+function dismissIntro() {
+  clearTimeout(_introTimer);
+  clearInterval(_countdownInt);
+
+  const screen = document.getElementById('introScreen');
+  const replay = document.getElementById('replayIntroBtn');
+
+  screen.classList.add('dismissing');
+  setTimeout(() => {
+    screen.style.display = 'none';
+    replay.style.display = 'block';
+  }, 700); /* matches CSS transition duration */
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MOUNT
+════════════════════════════════════════════════════════════════════ */
+const board = document.getElementById('board');
+SPACES.forEach(s => {
+  let el;
+  if (s.type === 'corner')  el = buildCorner(s);
+  else if (s.color)          el = buildProperty(s);
+  else                       el = buildPlain(s);
+  board.appendChild(el);
+});
+
+/* Build employee pills in toggle bar */
+buildEmpPills();
+
+/* CENTER GRID CELLS */
+for (let gr = 2; gr <= 10; gr++) {
+  for (let gc = 2; gc <= 10; gc++) {
+    const cx = gc - 6; const cy = 6 - gr;
+    const cell = document.createElement('div');
+    cell.className = `center-cell cell-r${gr}-c${gc}`;
+    cell.dataset.cx = cx; cell.dataset.cy = cy;
+    cell.style.gridRow = gr; cell.style.gridColumn = gc;
+    cell.title = `(${cx}, ${cy})`;
+    board.appendChild(cell);
+  }
+}
+
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    applyRotations();
+    window.addEventListener('resize', applyRotations);
+  });
+});
+
+/* SCORE BAR — all values derived from live data functions */
+(function() {
+  const activeProps = SPACES.filter(s => s.type === 'property' && s.active);
+
+  /* 1. Total OA Bonus pool — days × daily rate (flat team total) */
+  const totalOABonus   = calcOABonusPool();
+  const bonusPerPerson = calcOABonusPerTeammate();
+
+  /* 2. Team Contribution % — active spaces with ≥1 completion / total active spaces */
+  const spacesWithAny = activeProps.filter(s => totalCompletions(s.id) > 0).length;
+  const teamPct = activeProps.length > 0
+    ? Math.round(spacesWithAny / activeProps.length * 100) : 0;
+
+  /* 3. Board Progress for "Go" Raise — active spaces where ≥1 employee earned a star */
+  const starsCount = activeProps.filter(s => DONE.has(s.id)).length;
+  const allProps   = SPACES.filter(s => s.type === 'property');
+  const starsPct   = allProps.length > 0
+    ? Math.round(starsCount / allProps.length * 100) : 0;
+
+  document.getElementById('scoreBar').innerHTML = `
+    <div class="score-pill">
+      <div class="score-label">Total OA Bonus Pool</div>
+      <div class="score-value">$${totalOABonus.toLocaleString('en-US')}<span> / $${bonusPerPerson.toLocaleString('en-US')} ea.</span></div>
+      <div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>
+    </div>
+    <div class="score-pill">
+      <div class="score-label">Team Contribution</div>
+      <div class="score-value">${teamPct}<span>%</span></div>
+      <div class="progress-track"><div class="progress-fill" style="width:${teamPct}%"></div></div>
+    </div>
+    <div class="score-pill">
+      <div class="score-label">Board Progress for "Go" Raise</div>
+      <div class="score-value">${starsPct}<span>%</span></div>
+      <div class="progress-track"><div class="progress-fill" style="width:${starsPct}%"></div></div>
+    </div>`;
+})();
+
+/* ── Launch intro after board is fully painted ── */
+requestAnimationFrame(() => setTimeout(showIntro, 120));
+</script>
+</body>
+</html>
