@@ -41,14 +41,30 @@ html, body {
 
 body {
   display: flex; flex-direction: column;
-  align-items: center; /* center everything in the column */
+  align-items: stretch; /* don't fight flex:1 on board-wrap */
   padding: 8px;
 }
 
-/* Shared width constraint — matches the board's square footprint exactly */
+/* ── BOARD COLUMN — centered column that contains all board UI ──────
+   This is the centering wrapper. Body stays stretch so flex:1 works.
+   The column itself centers horizontally via margin:auto.
+──────────────────────────────────────────────────────────────────── */
+.board-column {
+  display: flex; flex-direction: column;
+  align-items: center; /* horizontal centering for all children */
+  flex: 1; min-height: 0; width: 100%;
+}
+
 .board-width-match {
   width: min(100%, calc(100vh - 80px));
   flex-shrink: 0;
+}
+
+/* Board wrapper specifically needs to stretch vertically AND center board horizontally */
+.board-wrap.board-width-match {
+  flex: 1;
+  min-height: 0;
+  align-self: auto; /* don't override - let parent center handle it */
 }
 
 /* Score bar — width controlled by .board-width-match class */
@@ -65,8 +81,8 @@ body {
 /* Board wrapper fills remaining vertical space */
 .board-wrap {
   flex: 1;
-  min-height: 0; /* allow shrink */
-  position: relative; /* anchor for overlay panel */
+  min-height: 0;
+  position: relative;
   display: flex; align-items: center; justify-content: center;
 }
 
@@ -1024,7 +1040,84 @@ body {
   100% { opacity:0; transform:scale(0.85) translateY(-8px); }
 }
 
-/* ── RULES OVERLAY ──────────────────────────────────────────────────── */
+/* ── BONUS SANDBOX ──────────────────────────────────────────────────── */
+.sandbox-wrap {
+  margin-top: 16px;
+  background: rgba(0,0,0,0.3);
+  border: 1.5px solid rgba(201,168,76,0.25);
+  border-radius: 12px; padding: 18px;
+}
+.sandbox-inputs {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  margin-bottom: 18px;
+}
+@media(max-width:480px){ .sandbox-inputs{ grid-template-columns:1fr; } }
+.sandbox-field { display: flex; flex-direction: column; gap: 6px; }
+.sandbox-label {
+  font-size: 0.6rem; font-weight: 800; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.12em;
+}
+.sandbox-input-row {
+  display: flex; align-items: center; gap: 0;
+  background: var(--surface2); border: 1.5px solid var(--gold-dim);
+  border-radius: 8px; overflow: hidden;
+}
+.sandbox-stepper {
+  background: rgba(201,168,76,0.1); border: none;
+  color: var(--gold); font-size: 1.1rem; font-weight: 700;
+  width: 36px; height: 36px; cursor: pointer;
+  transition: background 0.15s; flex-shrink: 0;
+}
+.sandbox-stepper:hover { background: rgba(201,168,76,0.25); }
+.sandbox-input {
+  flex: 1; background: transparent; border: none;
+  color: var(--gold); font-family: 'Courier New', monospace;
+  font-size: 1rem; font-weight: 900; text-align: center;
+  outline: none; min-width: 0; padding: 4px 0;
+  -moz-appearance: textfield;
+}
+.sandbox-input::-webkit-inner-spin-button,
+.sandbox-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.sandbox-hint {
+  font-size: 0.58rem; color: var(--text-dim); letter-spacing: 0.06em;
+}
+.sandbox-results {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;
+  margin-bottom: 14px;
+}
+@media(max-width:480px){ .sandbox-results{ grid-template-columns:1fr; } }
+.sandbox-result-card {
+  background: var(--surface2); border: 1.5px solid rgba(201,168,76,0.2);
+  border-radius: 10px; padding: 12px; text-align: center;
+}
+.sandbox-result-highlight {
+  background: rgba(201,168,76,0.1); border-color: var(--gold);
+}
+.sandbox-result-label {
+  font-size: 0.58rem; font-weight: 800; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px;
+}
+.sandbox-result-value {
+  font-size: clamp(1rem, 3vw, 1.4rem); font-weight: 900;
+  color: var(--gold); font-family: 'Courier New', monospace;
+  line-height: 1;
+}
+.sandbox-result-sub {
+  font-size: 0.58rem; color: var(--text-dim); margin-top: 4px;
+  line-height: 1.4;
+}
+.sandbox-insight {
+  font-size: 0.75rem; line-height: 1.6; color: var(--text-dim);
+  background: rgba(201,168,76,0.07); border-left: 3px solid var(--gold-dim);
+  border-radius: 0 8px 8px 0; padding: 10px 14px;
+  min-height: 36px; transition: all 0.3s;
+}
+.sandbox-insight strong { color: var(--gold); }
+.sandbox-insight.positive { border-left-color: #4ade80; }
+.sandbox-insight.warning  { border-left-color: #f87171; }
+</style>
+
+<style>
 .rules-overlay {
   position: fixed; inset: 0; z-index: 500;
   background: rgba(0,0,0,0.88);
@@ -1183,6 +1276,8 @@ body {
 
 </div>
 
+<div class="board-column">
+
 <!-- Top action bar — same width as board, left-aligned buttons -->
 <div class="top-action-bar board-width-match" id="topActionBar" style="display:none;">
   <button class="top-action-btn" id="replayIntroBtn"
@@ -1234,6 +1329,8 @@ body {
 
 <div class="score-bar board-width-match" id="scoreBar"></div>
 
+</div><!-- end board-column -->
+
 <!-- ════════════════════════════════════════════════════════════════════
      GAME RULES OVERLAY
 ════════════════════════════════════════════════════════════════════ -->
@@ -1250,136 +1347,229 @@ body {
 
     <div class="rules-body">
 
-      <!-- INTRO PHILOSOPHY -->
+      <!-- OPENING -->
       <div class="rules-section rules-intro-block">
-        <p class="rules-lede">OllieBoard is a meritocratic workplace game built on a simple premise: <strong>honest work, transparently measured, proportionally rewarded.</strong> Every mechanic on this board exists to make that real — nothing hidden, nothing arbitrary.</p>
+        <p class="rules-lede">At OllieBoard, we believe businesses thrive when reciprocity reigns supreme — a genuine spirit of mutual benefit rooted in American meritocracy, where financial success is a leading component.</p>
+        <p class="rules-lede" style="margin-top:10px;">We believe the people doing the work deserve real input and a fair, objective mechanism to define what meritocracy actually means. <strong>This game is the scoreboard that makes that belief real.</strong></p>
+        <p class="rules-lede" style="margin-top:10px;">We're not hiding the goal: we're building smaller, high-performing teams that get paid more. Teams that cover more ground together, earn more together, and stay together longer — because the productivity gains are shared directly with the team. That's not just corporate talk. It's the deal — stated plainly, up front, before you ever play a single round.</p>
+        <div class="rules-callout rules-callout-gold" style="margin-top:14px;">
+          <strong>This is a game built on liberty, equality, and fairness.</strong><br>
+          While playing OllieBoard, you'll earn points that convert directly into a discretionary bonus added to your regular pay — with the potential to increase your take-home pay by up to 30%.
+        </div>
       </div>
 
       <!-- MEET OLLIE -->
       <div class="rules-section">
         <div class="rules-section-header">
-          <span class="rules-icon">📞</span>
+          <span class="rules-icon">📲</span>
           <h2>Meet Ollie</h2>
         </div>
-        <p>Ollie is your AI voice agent. He calls the store's landline — no app, no hardware, no login required. When Ollie calls, he authenticates you by employee ID, delivers a task, and waits on hold while you complete it. A button press or voice confirmation closes the loop.</p>
+        <p>Ollie is your personal facilitator and guide inside the game. He's not here to monitor your work or report back on you — the employer has already agreed to the bonus plan. His only job is to help you understand the rules, make better decisions, earn more points, and maximize your take-home pay under the plan.</p>
         <div class="rules-callout">
-          <strong>Why the phone?</strong> Every store already has one. Ollie meets the crew where they are — not where a software vendor wishes they were.
+          <strong>Think of him as your coach — fully on your team.</strong>
         </div>
+
+        <!-- Ollie waving GIF -->
+        <div style="display:flex;justify-content:center;margin:18px 0 4px;">
+          <img src="/D3928/assets/ollie-waving.gif"
+               alt="Ollie waving hello"
+               style="max-width:280px;width:100%;border-radius:12px;
+                      border:1.5px solid var(--gold-dim);
+                      box-shadow:0 0 24px rgba(201,168,76,0.2);">
+        </div>
+
+        <div class="rules-section-header" style="margin-top:20px;">
+          <span class="rules-icon">🏠</span>
+          <h2>Ollie's Smart Store</h2>
+        </div>
+        <p>OllieBoard is designed to grow into a fully IoT-enabled environment — think of it as a private Alexa or Google Home built specifically for your store. Sensors, cameras, and connected devices can be added over time to <strong>objectively measure and verify the work happening in real time</strong>, without relying on anyone's word.</p>
+        <p>This matters because it keeps the system fair for everyone. When verification is objective, no one can be falsely credited — and no one can be falsely denied. The score reflects reality.</p>
+        <div class="rules-callout rules-callout-gold">
+          <strong>The team proposes the sensors. Ollie implements them.</strong><br>
+          If you think a task in your area could be better verified — a temperature sensor on the prep station, a door counter on the walk-in, a timer on the oven — you can suggest it. Ollie evaluates whether it can be implemented objectively. If it can, it gets added. The team shapes how the store measures itself.
+        </div>
+        <p style="margin-top:12px;">This isn't surveillance. It's the opposite — it's <strong>the team deciding what fair measurement looks like</strong>, then building the infrastructure to prove it. Every sensor added is one less ambiguity in the system, and one more way honest work gets accurately counted.</p>
       </div>
 
-      <!-- THE BOARD -->
+      <!-- HOW TASKS WORK -->
       <div class="rules-section">
         <div class="rules-section-header">
-          <span class="rules-icon">🎲</span>
-          <h2>The Board</h2>
+          <span class="rules-icon">✅</span>
+          <h2>How Tasks Work</h2>
         </div>
-        <p>Each space on this board is an <strong>OA space</strong> — a category of operational tasks. Spaces unlock over time as your store proves mastery of each category. An unlocked space means Ollie is actively calling your crew on tasks in that category.</p>
-        <div class="rules-grid-2">
-          <div class="rules-card">
-            <div class="rules-card-icon">⭐</div>
-            <div class="rules-card-title">Stars</div>
-            <div class="rules-card-body">Each task completion earns points. Hit the star threshold and you earn a star on that space. Stars are permanent — they don't reset.</div>
-          </div>
-          <div class="rules-card">
-            <div class="rules-card-icon">👑</div>
-            <div class="rules-card-title">Mayor</div>
-            <div class="rules-card-body">The teammate with the most completions on a space is its Mayor. Ties go to the longest-tenured team member. The Mayor's avatar appears on the board in Team View.</div>
-          </div>
+        <p>Ollie delivers tasks directly through <strong>Discord</strong>. When a task comes in, it lands in your channel with its point value clearly shown. To claim a task, mark that you've started it. When you finish, mark it as complete. That's the loop — simple, visible, and fully voluntary.</p>
+        <p>Every task has a point value. Points are verified daily, but they are converted to your discretionary bonus during the Operations Assessment (OA), which typically happens twice a year but can occur more frequently. Once the OA is complete and points are approved, the bonus is added to your regular pay.</p>
+        <p><strong>Not claiming a task isn't a punishment — it's simply leaving money on the table.</strong> The board shows what's still unclaimed in real time, so the whole team can see where help is needed without anyone having to ask.</p>
+        <div class="rules-callout">
+          While some tasks are required for regulatory reasons, the vast majority are voluntary. You choose what to pick up. Over time, the board creates an honest, visible record of who steps up — no hidden monitoring, no score-based discipline. Just transparency the team can see and respond to on its own.
         </div>
       </div>
 
-      <!-- THE PIGGYBANK -->
+      <!-- TRACK 1: PIÑATA BONUS -->
       <div class="rules-section">
         <div class="rules-section-header">
           <span class="rules-icon">🐷</span>
-          <h2>The Piggybank</h2>
+          <h2>Track One — The Piñata Bonus<br><small style="font-size:0.7em;font-weight:600;color:var(--text-dim);letter-spacing:0.05em;">The short game. Resets after every OA.</small></h2>
         </div>
-        <p>Every completed task across the entire crew drops value into a shared Piggybank. <strong>No one is competing against anyone else.</strong> The crew builds value together — the way a great store actually functions.</p>
+        <p>Every task you and your teammates complete adds to a shared Piñata pool. No individual competition — the whole crew fills the pool together. When your store goes through its Operations Assessment, the full pool pays out as a bonus, split proportionally based on each person's contribution.</p>
+
         <div class="rules-mechanic-row">
           <div class="rules-mechanic">
-            <div class="rules-mechanic-label">Daily Rate</div>
+            <div class="rules-mechanic-label">Daily Piñata Rate</div>
             <div class="rules-mechanic-value" id="rulesRateDisplay">$25 / day</div>
-            <div class="rules-mechanic-sub">Base rate at full team strength</div>
+            <div class="rules-mechanic-sub">Base rate. Increases $<span id="rulesRateIncDisplay">25</span>/day per teammate below baseline</div>
           </div>
           <div class="rules-mechanic rules-mechanic-gold">
             <div class="rules-mechanic-label">OA Multiplier</div>
             <div class="rules-mechanic-value">Your OA Score</div>
-            <div class="rules-mechanic-sub">Your operator's OA rating applied at cycle close</div>
+            <div class="rules-mechanic-sub">Applied to the full pool at cycle end</div>
           </div>
           <div class="rules-mechanic">
-            <div class="rules-mechanic-label">Cycle Close</div>
+            <div class="rules-mechanic-label">Payout</div>
             <div class="rules-mechanic-value">Each OA Visit</div>
-            <div class="rules-mechanic-sub">Pool distributes evenly to all active teammates</div>
+            <div class="rules-mechanic-sub">Split proportionally to all contributors</div>
           </div>
         </div>
-        <div class="rules-callout rules-callout-green">
-          <strong>Productivity Bonus:</strong> When team productivity replaces a departing teammate — the same output with one fewer person — the daily rate increases by $<span id="rulesRateIncDisplay">25</span>/day. The system rewards the team for absorbing that work, not just management for cutting labor.
+
+        <div class="rules-callout rules-callout-gold" style="margin-top:14px;">
+          <strong>The Piñata bonus is real money on top of your regular pay.</strong> Its purpose is simple: visible proof that your work is being converted into cash — transparently and fairly.
+        </div>
+        <div class="rules-callout rules-callout-green" style="margin-top:10px;">
+          <strong>Productivity Bonus:</strong> When the team absorbs work from a departing teammate and maintains output with fewer people, the daily Piñata rate goes up automatically. This is how we deliver on smaller teams getting paid more. The math works for the crew.
+        </div>
+        <p style="margin-top:12px;">The Piñata resets after every OA and starts fresh. Operations Assessments happen at random and typically occur about twice a year on average, though they can happen more often.</p>
+      </div>
+
+      <!-- SANDBOX -->
+      <div class="rules-section">
+        <div class="rules-section-header">
+          <span class="rules-icon">🧮</span>
+          <h2>Bonus Calculator</h2>
+        </div>
+        <p>See exactly how the Piñata Bonus changes based on your team size and days since the last OA. Every number here is real math — the same formula the board uses.</p>
+
+        <div class="sandbox-wrap">
+          <div class="sandbox-inputs">
+            <div class="sandbox-field">
+              <label class="sandbox-label">Team Size (teammates)</label>
+              <div class="sandbox-input-row">
+                <button class="sandbox-stepper" onclick="sandboxStep('sbTeam',-1)">−</button>
+                <input class="sandbox-input" id="sbTeam" type="number" min="1" max="30" value="8"
+                       oninput="sandboxCalc()">
+                <button class="sandbox-stepper" onclick="sandboxStep('sbTeam',1)">+</button>
+              </div>
+              <div class="sandbox-hint">Baseline: <span id="sbBaseline">8</span> teammates</div>
+            </div>
+            <div class="sandbox-field">
+              <label class="sandbox-label">Days Since Last OA</label>
+              <div class="sandbox-input-row">
+                <button class="sandbox-stepper" onclick="sandboxStep('sbDays',-10)">−</button>
+                <input class="sandbox-input" id="sbDays" type="number" min="1" max="730" value="78"
+                       oninput="sandboxCalc()">
+                <button class="sandbox-stepper" onclick="sandboxStep('sbDays',10)">+</button>
+              </div>
+              <div class="sandbox-hint">Typical OA cycle: ~180 days</div>
+            </div>
+          </div>
+
+          <div class="sandbox-results">
+            <div class="sandbox-result-card">
+              <div class="sandbox-result-label">Daily Piñata Rate</div>
+              <div class="sandbox-result-value" id="sbResultRate">$25</div>
+              <div class="sandbox-result-sub" id="sbResultRateSub">At baseline headcount</div>
+            </div>
+            <div class="sandbox-result-card sandbox-result-highlight">
+              <div class="sandbox-result-label">Total Pool</div>
+              <div class="sandbox-result-value" id="sbResultPool">$1,950</div>
+              <div class="sandbox-result-sub">Days × daily rate</div>
+            </div>
+            <div class="sandbox-result-card">
+              <div class="sandbox-result-label">Your Share</div>
+              <div class="sandbox-result-value" id="sbResultPer">$244</div>
+              <div class="sandbox-result-sub">Pool ÷ teammates</div>
+            </div>
+          </div>
+
+          <div class="sandbox-insight" id="sbInsight"></div>
         </div>
       </div>
 
-      <!-- PASS GO -->
+      <!-- TRACK 2: PASS GO -->
       <div class="rules-section">
         <div class="rules-section-header">
           <span class="rules-icon">🏁</span>
-          <h2>Pass Go — The Raise That Compounds</h2>
+          <h2>Track Two — Pass Go<br><small style="font-size:0.7em;font-weight:600;color:var(--text-dim);letter-spacing:0.05em;">The long game. Compounds forever.</small></h2>
         </div>
-        <p>An employee who <strong>answered every Ollie call on their shift</strong> and <strong>completed every task type</strong> has gone all the way around the board. That's Pass Go.</p>
+        <p>Every space on the board represents a key job area. Complete the tasks in that area repeatedly to earn points. Here's how it works:</p>
+        <ul class="rules-list" style="margin:10px 0 10px 0;">
+          <li>Complete a specific task four times → Earn a gold ⭐ on that space</li>
+          <li>Collect a gold star on every space → You <strong>Pass Go</strong></li>
+          <li>Passing Go increases your level and triggers a <strong>permanent raise</strong></li>
+        </ul>
         <div class="rules-callout rules-callout-gold">
-          <strong>Pass Go triggers a permanent +$0.05/hr raise.</strong> Not a bonus that disappears next pay period. A raise. It compounds every time you do it. This is the baseline stability in the system — reliable, predictable, earned.
+          <strong>This raise is automatic and permanent.</strong> It doesn't disappear next pay period. Every full lap around the board earns you another raise. Most people complete a revolution in roughly 90–180 days. That's real, compounding pay growth — delivered by the system, not negotiated with a manager.
         </div>
-        <div class="rules-grid-2">
+
+        <div class="rules-grid-2" style="margin-top:16px;">
           <div class="rules-card rules-card-dark">
-            <div class="rules-card-icon">✅</div>
-            <div class="rules-card-title">To Pass Go, you need to:</div>
-            <div class="rules-card-body">
-              <ul class="rules-list">
-                <li>Answer every Ollie call during your shift</li>
-                <li>Complete at least one task in every unlocked space category</li>
-                <li>Confirm completion via button press or voice</li>
-              </ul>
-            </div>
+            <div class="rules-card-icon">⭐</div>
+            <div class="rules-card-title">Stars</div>
+            <div class="rules-card-body">Each task category has a clear star threshold. Hit it and earn a permanent gold star on that space. Stars never reset — they're your lasting record of mastery.</div>
           </div>
           <div class="rules-card rules-card-dark">
-            <div class="rules-card-icon">🔄</div>
-            <div class="rules-card-title">Skipped Tasks</div>
-            <div class="rules-card-body">A task skipped three times arrives worth a minimum of <strong>4× points</strong> on the fourth delivery. Opportunity accumulates — it doesn't disappear. There is no punishment, only deferred upside.</div>
+            <div class="rules-card-icon">👑</div>
+            <div class="rules-card-title">Mayor</div>
+            <div class="rules-card-body">The teammate with the most completions on any space becomes its Mayor. Their avatar appears on the board for everyone to see. Ties go to the highest-leveled teammate — diligence and consistency matter most.</div>
+          </div>
+          <div class="rules-card rules-card-dark">
+            <div class="rules-card-icon">🎓</div>
+            <div class="rules-card-title">Alumni</div>
+            <div class="rules-card-body">Once you complete the full board — Pass Go at least once — you become an Alumni of the store and franchise. This proves you've mastered all operational areas and makes you eligible for additional programs and opportunities.</div>
+          </div>
+          <div class="rules-card rules-card-dark">
+            <div class="rules-card-icon">📈</div>
+            <div class="rules-card-title">Staying Pays</div>
+            <div class="rules-card-body">Every cycle you stay is another revolution toward your next raise, and another OA payout you're eligible for. <strong>To receive a Piñata Bonus payout, you need to be an active teammate when the OA is assessed.</strong> The longer you stay, the more you've built — and the more you stand to earn when the next payout hits.</div>
           </div>
         </div>
       </div>
 
-      <!-- THE OA CONNECTION -->
+      <!-- OA CONNECTION -->
       <div class="rules-section">
         <div class="rules-section-header">
           <span class="rules-icon">📋</span>
           <h2>The OA Connection</h2>
         </div>
-        <p>Your franchisor conducts surprise Operations Assessments (OA) — scoring stores on brand standards. Your OA score becomes the <strong>multiplier applied to the Piggybank at cycle close.</strong></p>
-        <p>This isn't an invented metric. It maps to something operators already care deeply about and are already rewarded for. That's the legitimacy anchor — the game runs on the same rails as the business.</p>
-        <div class="rules-callout">
-          <strong>Higher OA score = larger payout for the whole crew.</strong> When the team plays OllieBoard seriously, they're also naturally preparing for the OA visit. The incentives align, not compete.
+        <p>Operations Assessments are surprise visits from the franchisor that score your store on brand standards. That score (out of 100) directly determines your final Piñata Bonus payout.</p>
+        <p>OllieBoard helps you prepare by generating a simulated OA score based on the tasks you complete. The tasks on the board are specifically designed so that if you consistently complete them to a high standard, hitting a 90–100 on the real OA becomes much easier.</p>
+        <p>It is a shared responsibility between you and Ollie to keep the simulated OA score as close as possible to the actual OA score. You're encouraged to suggest better verification methods.</p>
+        <div class="rules-grid-2" style="margin-top:12px;">
+          <div class="rules-card">
+            <div class="rules-card-icon">⭐⭐⭐⭐</div>
+            <div class="rules-card-title">Minimum for Payout</div>
+            <div class="rules-card-body">A minimum 4-star OA score is required for any Piñata Bonus payout.</div>
+          </div>
+          <div class="rules-card">
+            <div class="rules-card-icon">⭐⭐⭐⭐⭐</div>
+            <div class="rules-card-title">5-Star Recognition</div>
+            <div class="rules-card-body">5-star performance unlocks additional recognition, especially for Mayors. Higher OA score = larger payout. Same work. Better results.</div>
+          </div>
         </div>
       </div>
 
-      <!-- WHY MONOPOLY -->
-      <div class="rules-section">
-        <div class="rules-section-header">
-          <span class="rules-icon">🎯</span>
-          <h2>Why Monopoly?</h2>
-        </div>
-        <p>Monopoly is universally understood — across education levels, languages, and ages. It has the right emotional register: <strong>accumulation, board traversal, and collective building.</strong></p>
-        <p>A teammate can immediately map their situation onto it: <em>"I'm collecting points, building toward Pass Go, and the Piggybank is growing for the whole crew."</em> That's intuitive in a way that "gainsharing tied to OA-weighted task completion metrics" is not.</p>
-      </div>
-
-      <!-- THE DEEPER WHY -->
+      <!-- WHO DEFINES MERITOCRACY -->
       <div class="rules-section rules-closer">
         <div class="rules-section-header">
           <span class="rules-icon">⚖️</span>
-          <h2>The Standard for Honest Work</h2>
+          <h2>Who Gets to Define Meritocracy?</h2>
         </div>
-        <p>OllieBoard exists because honest systems — where work is <strong>seen</strong>, <strong>measured transparently</strong>, and <strong>rewarded in proportion to contribution</strong> — create the most resilient organizations.</p>
-        <p>These game rules aren't just onboarding. They're a values document. They say: <strong>here is a system you can trust. Here is what you're building toward. Here is exactly how it works — nothing hidden.</strong></p>
+        <p>For too long, leaders alone defined what good work looked like and decided how — or whether — to reward it. There was no clear scoreboard, no transparent rules, and no reliable way to connect effort to reward.</p>
+        <p><strong>OllieBoard changes that.</strong> The rules are published upfront. Point values are visible. The payout formula is fixed. No one can change the rules after the work is done.</p>
+        <p>Most importantly, we believe the people doing the work deserve a real voice and a fair, objective mechanism in defining what meritocracy actually means in their store.</p>
+        <p>OllieBoard isn't surveillance disguised as a game. It's a transparent tool for mutual success, wrapped in the most engaging format we know: a game. When the rules are fair, visible, and shaped with input from the team, good work becomes its own reward — and everyone wins when the team performs at its best.</p>
         <div class="rules-callout rules-callout-gold">
-          That's The Standard for Honest Work made tactile.
+          <strong>Honest effort. Clear rewards. Shared success.</strong><br>
+          This is how we build better businesses — together.
         </div>
       </div>
 
@@ -1407,7 +1597,7 @@ const STORE_CONFIG = {
   daily_piggybank_rate: 25,
   /* baseline_headcount: the reference headcount at which daily_piggybank_rate
      applies at face value. If current headcount < baseline, rate increases. */
-  baseline_headcount: 8,
+  baseline_headcount: 20,
   /* data_as_of: ISO date of the most recent JSON data upload.
      Displayed on the intro screen so the team knows how current
      the board is. Update this field each time you push new data. */
@@ -1419,24 +1609,24 @@ const STORE_CONFIG = {
    One entry per day. Board computes 30-day rolling average.
 ════════════════════════════════════════════════════════════════════ */
 const HEADCOUNT_LOG = [
-  { date:"2026-02-25", count:9 }, { date:"2026-02-26", count:9 },
-  { date:"2026-02-27", count:8 }, { date:"2026-02-28", count:8 },
-  { date:"2026-03-01", count:9 }, { date:"2026-03-02", count:9 },
-  { date:"2026-03-03", count:8 }, { date:"2026-03-04", count:7 },
-  { date:"2026-03-05", count:8 }, { date:"2026-03-06", count:8 },
-  { date:"2026-03-07", count:9 }, { date:"2026-03-08", count:9 },
-  { date:"2026-03-09", count:8 }, { date:"2026-03-10", count:8 },
-  { date:"2026-03-11", count:7 }, { date:"2026-03-12", count:7 },
-  { date:"2026-03-13", count:8 }, { date:"2026-03-14", count:8 },
-  { date:"2026-03-15", count:9 }, { date:"2026-03-16", count:9 },
-  { date:"2026-03-17", count:8 }, { date:"2026-03-18", count:7 },
-  { date:"2026-03-19", count:7 }, { date:"2026-03-20", count:8 },
-  { date:"2026-03-21", count:8 }, { date:"2026-03-22", count:9 },
-  { date:"2026-03-23", count:9 }, { date:"2026-03-24", count:8 },
-  { date:"2026-03-25", count:8 }, { date:"2026-03-26", count:7 },
-  { date:"2026-03-27", count:7 }, { date:"2026-03-28", count:8 },
-  { date:"2026-03-29", count:8 }, { date:"2026-03-30", count:9 },
-  { date:"2026-03-31", count:9 }
+  { date:"2026-02-25", count:20 }, { date:"2026-02-26", count:20 },
+  { date:"2026-02-27", count:19 }, { date:"2026-02-28", count:19 },
+  { date:"2026-03-01", count:20 }, { date:"2026-03-02", count:20 },
+  { date:"2026-03-03", count:20 }, { date:"2026-03-04", count:18 },
+  { date:"2026-03-05", count:19 }, { date:"2026-03-06", count:19 },
+  { date:"2026-03-07", count:20 }, { date:"2026-03-08", count:20 },
+  { date:"2026-03-09", count:20 }, { date:"2026-03-10", count:19 },
+  { date:"2026-03-11", count:18 }, { date:"2026-03-12", count:18 },
+  { date:"2026-03-13", count:19 }, { date:"2026-03-14", count:20 },
+  { date:"2026-03-15", count:20 }, { date:"2026-03-16", count:20 },
+  { date:"2026-03-17", count:19 }, { date:"2026-03-18", count:18 },
+  { date:"2026-03-19", count:18 }, { date:"2026-03-20", count:19 },
+  { date:"2026-03-21", count:20 }, { date:"2026-03-22", count:20 },
+  { date:"2026-03-23", count:20 }, { date:"2026-03-24", count:19 },
+  { date:"2026-03-25", count:19 }, { date:"2026-03-26", count:18 },
+  { date:"2026-03-27", count:18 }, { date:"2026-03-28", count:19 },
+  { date:"2026-03-29", count:20 }, { date:"2026-03-30", count:20 },
+  { date:"2026-03-31", count:20 }
 ];
 
 /* ════════════════════════════════════════════════════════════════════
@@ -1576,6 +1766,66 @@ const EMPLOYEES = [
       { entity:"ollieboard.oa_space_1", timestamp:"2025-03-05T15:00:00Z" },
       { entity:"ollieboard.oa_space_1", timestamp:"2025-03-07T15:10:00Z" }
     ]
+  },
+  {
+    id: "emp_stub_009", discord_handle: "jordanb#1122", name: "Jordan Brooks",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/jordanb.png",
+    start_date: "2024-11-12", completions: []
+  },
+  {
+    id: "emp_stub_010", discord_handle: "taylorm#3344", name: "Taylor Mills",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/taylorm.png",
+    start_date: "2025-01-08", completions: []
+  },
+  {
+    id: "emp_stub_011", discord_handle: "alexr#5566", name: "Alex Rivera",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/alexr.png",
+    start_date: "2024-08-20", completions: []
+  },
+  {
+    id: "emp_stub_012", discord_handle: "morganj#7788", name: "Morgan James",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/morganj.png",
+    start_date: "2025-02-01", completions: []
+  },
+  {
+    id: "emp_stub_013", discord_handle: "caseyh#9900", name: "Casey Hall",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/caseyh.png",
+    start_date: "2024-10-15", completions: []
+  },
+  {
+    id: "emp_stub_014", discord_handle: "rileyd#2211", name: "Riley Davis",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/rileyd.png",
+    start_date: "2025-01-22", completions: []
+  },
+  {
+    id: "emp_stub_015", discord_handle: "cameronw#4433", name: "Cameron White",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/cameronw.png",
+    start_date: "2024-07-14", completions: []
+  },
+  {
+    id: "emp_stub_016", discord_handle: "averyc#6655", name: "Avery Clark",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/averyc.png",
+    start_date: "2025-03-10", completions: []
+  },
+  {
+    id: "emp_stub_017", discord_handle: "dakotap#8877", name: "Dakota Pierce",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/dakotap.png",
+    start_date: "2024-12-05", completions: []
+  },
+  {
+    id: "emp_stub_018", discord_handle: "reeseb#0011", name: "Reese Bell",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/reeseb.png",
+    start_date: "2025-02-18", completions: []
+  },
+  {
+    id: "emp_stub_019", discord_handle: "quinns#2233", name: "Quinn Sanders",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/quinns.png",
+    start_date: "2024-09-30", completions: []
+  },
+  {
+    id: "emp_stub_020", discord_handle: "peytonf#4455", name: "Peyton Foster",
+    avatar_url: "https://cdn.discordapp.com/avatars/stub/peytonf.png",
+    start_date: "2025-01-05", completions: []
   }
 ];
 
@@ -3441,13 +3691,20 @@ function openRules() {
   const rate = STORE_CONFIG.daily_piggybank_rate;
   const el1  = document.getElementById('rulesRateDisplay');
   const el2  = document.getElementById('rulesRateIncDisplay');
-  const el3  = document.getElementById('rulesStoreName');
   if (el1) el1.textContent = `$${rate.toLocaleString('en-US')} / day`;
   if (el2) el2.textContent = rate.toLocaleString('en-US');
-  if (el3) el3.textContent = STORE_CONFIG.store_name || '';
+
+  /* Seed sandbox inputs from live data */
+  const sbTeam = document.getElementById('sbTeam');
+  const sbDays = document.getElementById('sbDays');
+  if (sbTeam) sbTeam.value = Math.round(avg30DayHeadcount()) || STORE_CONFIG.baseline_headcount;
+  if (sbDays) sbDays.value = daysSinceLastOA();
 
   overlay.style.display = 'flex';
   overlay.scrollTop = 0;
+
+  /* Run calculator with seeded values */
+  setTimeout(sandboxCalc, 50);
 }
 
 function closeRules() {
@@ -3468,6 +3725,76 @@ function closeRules() {
 document.getElementById('rulesOverlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) { haptic('error'); closeRules(); }
 });
+
+/* ════════════════════════════════════════════════════════════════════
+   BONUS SANDBOX — interactive calculator in the rules page
+════════════════════════════════════════════════════════════════════ */
+function sandboxStep(id, delta) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const val = parseInt(el.value) || 0;
+  el.value = Math.max(parseInt(el.min) || 1, val + delta);
+  sandboxCalc();
+  haptic('selection');
+}
+
+function sandboxCalc() {
+  const teamEl = document.getElementById('sbTeam');
+  const daysEl = document.getElementById('sbDays');
+  if (!teamEl || !daysEl) return;
+
+  const team     = Math.max(1, parseInt(teamEl.value) || 1);
+  const days     = Math.max(1, parseInt(daysEl.value) || 1);
+  const base     = STORE_CONFIG.daily_piggybank_rate;
+  const baseline = STORE_CONFIG.baseline_headcount;
+
+  /* Same formula as calcDailyRate() */
+  const delta    = baseline - team;
+  const rate     = Math.max(0, base + delta * base);
+  const pool     = days * rate;
+  const perPerson = team > 0 ? Math.round(pool / team) : 0;
+
+  /* Update baseline display */
+  const sbBase = document.getElementById('sbBaseline');
+  if (sbBase) sbBase.textContent = baseline;
+
+  /* Update result cards */
+  const rRate = document.getElementById('sbResultRate');
+  const rPool = document.getElementById('sbResultPool');
+  const rPer  = document.getElementById('sbResultPer');
+  const rSub  = document.getElementById('sbResultRateSub');
+  const rInsight = document.getElementById('sbInsight');
+
+  if (rRate) rRate.textContent = `$${rate.toLocaleString('en-US')}`;
+  if (rPool) rPool.textContent = `$${pool.toLocaleString('en-US')}`;
+  if (rPer)  rPer.textContent  = `$${perPerson.toLocaleString('en-US')}`;
+
+  /* Dynamic sub-label for rate */
+  if (rSub) {
+    if (team < baseline) {
+      rSub.textContent = `+$${(rate - base).toLocaleString('en-US')}/day productivity bonus`;
+    } else if (team === baseline) {
+      rSub.textContent = 'At baseline headcount';
+    } else {
+      rSub.textContent = rate === 0 ? 'Above baseline — rate at $0' : `Above baseline`;
+    }
+  }
+
+  /* Insight message */
+  if (rInsight) {
+    if (rate === 0) {
+      rInsight.className = 'sandbox-insight warning';
+      rInsight.innerHTML = `<strong>Team is above baseline (${baseline}).</strong> The daily rate drops to $0 when headcount exceeds baseline — the Piñata pool stops growing. This is what it costs to add a teammate above the optimum size.`;
+    } else if (team < baseline) {
+      const saved = (base + delta * base - base);
+      rInsight.className = 'sandbox-insight positive';
+      rInsight.innerHTML = `<strong>Productivity bonus active.</strong> With ${baseline - team} fewer teammate${baseline - team !== 1 ? 's' : ''} than baseline, the daily rate is $${rate}/day — $${saved}/day above base. Over ${days} days that's an extra <strong>$${(saved * days).toLocaleString('en-US')}</strong> in the pool.`;
+    } else {
+      rInsight.className = 'sandbox-insight';
+      rInsight.innerHTML = `At full baseline strength, the pool grows at <strong>$${rate}/day</strong>. Over ${days} days that's <strong>$${pool.toLocaleString('en-US')}</strong> total — <strong>$${perPerson.toLocaleString('en-US')}</strong> per teammate when the OA hits.`;
+    }
+  }
+}
 
 /* ════════════════════════════════════════════════════════════════════
    MOUNT
