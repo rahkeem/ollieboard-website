@@ -69,7 +69,7 @@ body {
 
 /* Score bar — width controlled by .board-width-match class */
 .score-bar {
-  flex-shrink: 0; display: flex; gap: 8px; margin-top: 8px;
+  flex-shrink: 0; display: flex; gap: 8px; margin-top: 4px;
 }
 .score-pill { flex:1; background:var(--surface2); border:1px solid var(--gold-dim); border-radius:6px; padding:8px 12px; display:flex; flex-direction:column; gap:4px; }
 .score-label { font-size:0.72rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim); font-weight:600; }
@@ -78,30 +78,79 @@ body {
 .progress-track { height:3px; background:#1e1e1e; border-radius:2px; overflow:hidden; }
 .progress-fill { height:100%; background:linear-gradient(90deg,var(--gold-dim),var(--gold-light)); border-radius:2px; transition:width 0.8s ease; }
 
-/* Board wrapper fills remaining vertical space */
+/* ── BOARD WRAP — 3D perspective container ──────────────────────── */
 .board-wrap {
   flex: 1;
   min-height: 0;
   position: relative;
   display: flex; align-items: center; justify-content: center;
+  /* Req 1: 2000px perspective. Origin at 50% 40% so the iso view
+     appears centered vertically rather than floating up. */
+  perspective: 2000px;
+  perspective-origin: 50% 40%;
+  overflow: visible;
+}
+
+/* ── 3D SCENE WRAPPER ──────────────────────────────────────────── */
+.board-3d-scene {
+  position: relative;
+  /* Scale 0.6 gives breathing room for the iso diamond shape.
+     The board is square; at 55/45deg it fits a ~70% wide diamond,
+     so we scale down to 0.6 so corners don't clip the viewport. */
+  transform: rotateX(55deg) rotateZ(45deg) scale(0.60);
+  transform-style: preserve-3d;
+  transform-origin: center center;
+  animation: isoFloat 7s ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes isoFloat {
+  0%,100% { transform: rotateX(55deg) rotateZ(45deg) scale(0.60) translateZ(0px); }
+  50%      { transform: rotateX(55deg) rotateZ(45deg) scale(0.60) translateZ(10px); }
 }
 
 /* ── BOARD ─────────────────────────────────────────────────────────
-   Square, fills the smaller of available width/height.
+   Preserving exact original sizing. overflow:visible lets buildings protrude.
 ──────────────────────────────────────────────────────────────────── */
 .board {
   display: grid;
-  grid-template-columns: 120px repeat(9, 1fr) 120px;
-  grid-template-rows:    120px repeat(9, 1fr) 120px;
-  /* Fill available space — no title bar above, just score bar below (~56px) */
+  /* All 11 columns equal so corner + edge spaces are consistent in iso view.
+     Corner spaces are visually larger in the data (120px originally) but
+     in iso perspective equal grid units look far more correct. */
+  grid-template-columns: repeat(11, 1fr);
+  grid-template-rows:    repeat(11, 1fr);
   width:  min(100%, calc(100vh - 80px));
   height: min(100%, calc(100vh - 80px));
   aspect-ratio: 1 / 1;
   border: 4px solid var(--gold);
   border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 0 60px var(--gold-glow), inset 0 0 80px rgba(0,0,0,0.6);
+  overflow: visible;
+  box-shadow:
+    0 0 60px var(--gold-glow),
+    0 50px 100px rgba(0,0,0,0.90),
+    inset 0 0 60px rgba(0,0,0,0.5);
   background: var(--surface);
+  transform-style: preserve-3d;
+  position: relative;
+  /* Ensure pseudo-elements can bleed outside board bounds */
+  overflow: visible;
+}
+
+/* ── OLD EXTRUSION DIVS — superseded by .board::before/::after ──── */
+/* These divs stay in the DOM but are hidden; thickness is now via pseudo-elements */
+.board-extrude-south, .board-extrude-east, .board-extrude-bottom { display: none; }
+
+/* ── GROUND GLOW ──────────────────────────────────────────────── */
+.board-ground-glow {
+  position: absolute; pointer-events: none;
+  width: 160%; height: 160%; left: -30%; top: 5%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse,
+    rgba(201,168,76,0.14) 0%,
+    rgba(201,168,76,0.04) 40%,
+    transparent 65%
+  );
+  transform: translateZ(-60px);
+  filter: blur(20px);
 }
 
 /* Center cell */
@@ -151,29 +200,42 @@ body {
   cursor: default; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 4px;
   overflow: hidden; transition: background 0.2s;
-  width: 100%; height: 100%; aspect-ratio: 1/1;
+  width: 100%; height: 100%;
+  /* No aspect-ratio: the grid cell is already square with repeat(11, 1fr) */
 }
 .ob-corner:hover { background:rgba(201,168,76,0.09); }
-.ob-corner .c-icon  { font-size:clamp(1rem,3.5vw,2.2rem); line-height:1; }
-.ob-corner .c-label { font-size:clamp(0.55rem, 1.2vw, 0.82rem);color:var(--gold);font-weight:800;text-align:center;letter-spacing:0.04em;text-transform:uppercase;padding:0 3px; }
+.ob-corner .c-icon  { font-size:clamp(0.7rem,2.5vw,1.6rem); line-height:1; }
+.ob-corner .c-label { font-size:clamp(0.4rem, 0.9vw, 0.65rem);color:var(--gold);font-weight:800;text-align:center;letter-spacing:0.04em;text-transform:uppercase;padding:0 3px; }
 
 /* Space base */
 .space {
   position:relative; overflow:hidden;
   background:var(--surface);
-  /* Thick gold border between spaces — matches the inner grid border weight */
   border:2px solid var(--gold);
-  cursor:pointer; transition:background 0.2s,box-shadow 0.2s,transform 0.1s;
+  cursor:pointer;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.18s ease;
   container-type: size;
+  /* Req 3 + Req 1: preserve-3d so translateZ works through the hierarchy */
+  transform-style: preserve-3d;
 }
-.space:hover { background:#1c1500; box-shadow:inset 0 0 0 2px rgba(201,168,76,0.5); z-index:2; }
-.space:active { transform:scale(0.97); }
-.space.completed    { background:rgba(201,168,76,0.07); }
-.space.completed:hover { background:#1a1700; }
+.space:hover {
+  background: #1c1500;
+  box-shadow:
+    inset 0 0 0 2px rgba(201,168,76,0.5),
+    0 12px 24px rgba(0,0,0,0.9);
+  z-index: 2;
+  /* Req 3: translateZ keeps footprint aligned, lifts toward camera */
+  transform: translateZ(10px);
+}
+.space:active { transform:translateZ(0px) scale(0.97); }
+.space.completed    { background:rgba(201,168,76,0.07); transform: translateZ(0px); }
+.space.completed:hover { background:#1a1700; transform: translateZ(10px); }
 .space.active-sel {
-  background:rgba(201,168,76,0.13)!important;
-  box-shadow:inset 0 0 0 3px var(--gold),0 0 18px var(--gold-glow)!important;
-  z-index:5;
+  background: rgba(201,168,76,0.12) !important;
+  box-shadow: inset 0 0 28px rgba(201,168,76,0.22),
+              0 0 12px rgba(201,168,76,0.12) !important;
+  border-color: rgba(201,168,76,0.55) !important;
+  z-index: 5;
 }
 
 /* Inner rotation wrapper */
@@ -184,13 +246,20 @@ body {
 
 /* Property space */
 .prop-band {
-  flex-shrink:0; height:24px; position:relative;
+  flex-shrink:0;
+  height: clamp(14px, 18cqh, 22px);
+  position:relative;
   display:flex; align-items:center; justify-content:center;
-  /* Thick gold line at base of color header — visually separates band from text */
-  border-bottom: 3px solid var(--gold);
+  border-bottom: 2px solid var(--gold);
   box-shadow: inset 0 0 0 1px rgba(0,0,0,0.3);
 }
-.prop-name {
+.prop-subtitle {
+  font-size: clamp(0.28rem, 0.65cqw, 0.52rem);
+  font-weight: 600; color: var(--text-dim);
+  letter-spacing: 0.08em; text-align: center;
+  margin-top: 1px;
+}
+
   flex:1;
   display:flex; align-items:flex-start; justify-content:center;
   text-align:center; font-weight:900; color:var(--text);
@@ -237,16 +306,17 @@ body {
    - Desaturated/dimmed color band (no dots)
    - Name in muted color
    - Release date on second line
-   - No stars, no pts
+   - No stars, no xp
 ──────────────────────────────────────────────────────────────────── */
 .space.unreleased { cursor: pointer; }
 .space.unreleased:hover { background: #161010; }
 
 .prop-band-unreleased {
-  flex-shrink: 0; height: 24px; position: relative;
+  flex-shrink: 0;
+  height: clamp(14px, 18cqh, 22px);
+  position: relative;
   display: flex; align-items: center; justify-content: center;
-  /* Same thick gold line as active prop-band — just dimmed by opacity below */
-  border-bottom: 3px solid var(--gold);
+  border-bottom: 2px solid var(--gold);
   opacity: 0.45;
 }
 
@@ -280,7 +350,7 @@ body {
    Replaces the stars row with:
    - Mayor avatar (circle with initials fallback)
    - "MAYOR" label
-   PTS row becomes "X PTS EARNED" (total team points)
+   XP row becomes "X XP EARNED" (total team points)
 ──────────────────────────────────────────────────────────────────── */
 .mayor-row {
   flex: 1;
@@ -313,6 +383,7 @@ body {
 
 /* Side column text fix — all rotated text elements */
 .ob-side .prop-name, .ob-side .plain-name,
+.ob-side .prop-subtitle,
 .ob-side .prop-pts,  .ob-side .plain-pts { writing-mode: horizontal-tb; }
 
 /* ── BAND DOTS ─────────────────────────────────────────────────────
@@ -345,7 +416,7 @@ body {
 .ob-side .band-dots { writing-mode: horizontal-tb; }
 
 /* ── FOOTER STARS ──────────────────────────────────────────────────
-   Gold stars earned, shown above the PTS row.
+   Gold stars earned, shown above the XP row.
    One ★ per star threshold crossed (completionCount >= starThreshold).
    Empty star (☆) shown if threshold set but not yet earned.
 ──────────────────────────────────────────────────────────────────── */
@@ -414,6 +485,15 @@ body {
     transform: translateX(0) translateY(-50%);
     opacity: 1;
   }
+}
+
+/* Panel body swap animation — fires when content changes on an already-open panel */
+@keyframes panelSwapIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.panel-body.swapping {
+  animation: panelSwapIn 0.22s cubic-bezier(0.34,1.2,0.64,1) both;
 }
 
 /* Panel header */
@@ -1115,6 +1195,152 @@ body {
 .sandbox-insight strong { color: var(--gold); }
 .sandbox-insight.positive { border-left-color: #4ade80; }
 .sandbox-insight.warning  { border-left-color: #f87171; }
+
+/* ══════════════════════════════════════════════════════════════════
+   PHYSICAL 3D BOARD — full volumetric rendering system
+   ══════════════════════════════════════════════════════════════════
+
+   Architecture:
+   • The .board element is the top face of the slab
+   • ::before  = south-facing thick edge of the slab
+   • ::after   = east-facing thick edge of the slab
+   • Board thickness = 28px in Z-space
+   • Buildings are true CSS cubes with 5 visible faces
+   • A global spotlight gradient sits above everything (pointer-events:none)
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── 1. BOARD SLAB THICKNESS ──────────────────────────────────────
+   The board top face is already rendered. We add the two visible
+   thickness edges using ::before (south/bottom edge) and ::after
+   (east/right edge). Both fold outward 90° from the board edges.
+   --slab: controls thickness in px — change one var to rescale.
+─────────────────────────────────────────────────────────────────── */
+.board {
+  --slab: 28px;
+}
+
+/* ── 2. BUILDING CSS CUBE SYSTEM ─────────────────────────────────
+   Each .iso-building is a transform-style:preserve-3d container
+   positioned absolutely within .center.
+   Children: .b-top .b-front .b-back .b-left .b-right .b-shadow
+
+   The building wrapper itself has NO transform — it just sizes the
+   footprint. Each face is positioned using CSS 3D transforms from
+   that origin box.
+
+   HEIGHT is driven by the CSS var --bh set inline by JS.
+   WIDTH  is driven by --bw (square footprint).
+
+   Face geometry (W = --bw, H = --bh):
+     top    : W×W plane, translateZ(H)            ← roof
+     front  : W×H plane, translateY(W/2) rotateX(-90deg)  ← south side
+     back   : W×H plane, translateY(-W/2) rotateX(90deg)  ← north side
+     right  : W×H plane, translateX(W/2) rotateY(90deg)   ← east side
+     left   : W×H plane, translateX(-W/2) rotateY(-90deg) ← west side
+─────────────────────────────────────────────────────────────────── */
+.iso-building {
+  position: absolute;
+  transform-style: preserve-3d;
+  pointer-events: none;
+  /* Width & height are the footprint (square). Height (Z) via --bh. */
+}
+
+.iso-building .b-face {
+  position: absolute;
+  /* Faces are sized and positioned by inline styles from JS */
+  backface-visibility: hidden;
+}
+
+/* Top face — lightest (facing the spotlight) */
+.iso-building .b-top {
+  /* Subtle inner highlight from top-left per spotlight direction */
+  background:
+    linear-gradient(135deg,
+      rgba(255,255,255,0.18) 0%,
+      rgba(255,255,255,0.06) 40%,
+      rgba(0,0,0,0.10) 100%
+    );
+}
+
+/* South/front face — medium brightness (facing viewer-left) */
+.iso-building .b-front {
+  background:
+    linear-gradient(180deg,
+      rgba(255,255,255,0.05) 0%,
+      rgba(0,0,0,0.30) 100%
+    );
+}
+
+/* East/right face — darkest (shadow side, away from spotlight) */
+.iso-building .b-right {
+  background:
+    linear-gradient(180deg,
+      rgba(0,0,0,0.25) 0%,
+      rgba(0,0,0,0.55) 100%
+    );
+}
+
+/* North/back and west/left faces — not usually visible in iso */
+.iso-building .b-back,
+.iso-building .b-left {
+  background: rgba(0,0,0,0.6);
+}
+
+/* ── 4. CAST SHADOW ───────────────────────────────────────────────
+   A flat ellipse sitting at Z=0 (board surface).
+   Its width/offset scale with building height so taller buildings
+   cast a longer shadow toward the bottom-right (away from spotlight).
+─────────────────────────────────────────────────────────────────── */
+.iso-building .b-shadow {
+  position: absolute;
+  background: radial-gradient(ellipse, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0) 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  /* Sits on the board surface */
+  transform: translateZ(1px);
+}
+
+/* ── 5. SPOTLIGHT OVERLAY ────────────────────────────────────────
+   A fixed gradient div layered over the entire board-3d-scene.
+   It stays in screen space (not 3D-transformed) so it acts like
+   a light hitting the tilted board from the top-left.
+   pointer-events:none so clicks pass through.
+─────────────────────────────────────────────────────────────────── */
+.board-spotlight {
+  position: absolute;
+  inset: -30%;
+  pointer-events: none;
+  z-index: 500;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at 25% 20%,
+    rgba(255,248,220,0.10) 0%,
+    rgba(255,240,180,0.04) 30%,
+    transparent 65%
+  );
+  /* This lives outside the 3D scene so it's not distorted */
+}
+
+/* ── PRESERVE-3D PASSTHROUGH ──────────────────────────────────── */
+.center, .center-grid {
+  transform-style: preserve-3d;
+  overflow: visible;
+}
+ollie-cell {
+  transform-style: preserve-3d;
+}
+
+/* ── SCENE BACKGROUND ─────────────────────────────────────────── */
+html, body {
+  background:
+    radial-gradient(ellipse at 50% 55%, rgba(201,168,76,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 15% 85%, rgba(100,70,10,0.08) 0%, transparent 50%),
+    #010101;
+}
+
+/* ── PANEL / OVERLAY ISOLATION ────────────────────────────────── */
+.side-panel { transform-style: flat; z-index: 9999; }
+#introScreen, #rulesOverlay { transform: none !important; }
 </style>
 
 <style>
@@ -1291,13 +1517,24 @@ body {
 </div>
 
 <div class="board-wrap board-width-match" id="boardWrap">
-  <div class="board" id="board">
-    <div class="center">
-      <!-- Floor plan — sits behind the grid overlay -->
-      <div class="center-floor"></div>
-      <div class="center-grid"></div>
+  <!-- Spotlight overlay — screen-space, not 3D-transformed -->
+  <div class="board-spotlight"></div>
+  <!-- Req 1: 3D scene wrapper with isometric transform -->
+  <div class="board-3d-scene" id="board3dScene">
+    <!-- Ground glow beneath the board -->
+    <div class="board-ground-glow"></div>
+
+    <div class="board" id="board">
+      <div class="center">
+        <!-- Floor plan — sits behind the grid overlay -->
+        <div class="center-floor"></div>
+        <div class="center-grid"></div>
+      </div>
+      <!-- Extrusion side faces for 3D depth -->
+      <div class="board-extrude-south"></div>
+      <div class="board-extrude-east"></div>
     </div>
-  </div>
+  </div><!-- end board-3d-scene -->
 
   <!-- Overlay panel — sits over board when open -->
   <div class="side-panel" id="sidePanel">
@@ -1368,6 +1605,9 @@ body {
         <div class="rules-callout">
           <strong>Think of him as your coach — fully on your team.</strong>
         </div>
+        <div class="rules-callout" style="margin-top:10px; border-left-color: rgba(201,168,76,0.4);">
+          <strong>Coming soon — Ollie by voice.</strong> The next version of Ollie works ambiently, the way Alexa or Google Home do. He'll call the store phone, greet you by name, read you your next task, and wait on the line while you complete it. No screen required. No app. Just a voice in the store that's always working alongside you. For now, everything runs through Discord.
+        </div>
 
         <!-- Ollie waving GIF -->
         <div style="display:flex;justify-content:center;margin:18px 0 4px;">
@@ -1397,10 +1637,64 @@ body {
           <span class="rules-icon">✅</span>
           <h2>How Tasks Work</h2>
         </div>
-        <p>Ollie delivers tasks directly through <strong>Discord</strong>. When a task comes in, it lands in your channel with its point value clearly shown. To claim a task, mark that you've started it. When you finish, mark it as complete. That's the loop — simple, visible, and fully voluntary.</p>
-        <p>Every task has a point value. Points are verified daily, but they are converted to your discretionary bonus during the Operations Assessment (OA), which typically happens twice a year but can occur more frequently. Once the OA is complete and points are approved, the bonus is added to your regular pay.</p>
-        <p><strong>Not claiming a task isn't a punishment — it's simply leaving money on the table.</strong> The board shows what's still unclaimed in real time, so the whole team can see where help is needed without anyone having to ask.</p>
-        <div class="rules-callout">
+        <p>Ollie posts tasks to your team's Discord channel. Each task shows the zone or area, the point value, and its current status. <strong>You never have to navigate threads, find a menu, or use a special command.</strong> Just talk in the channel the way you normally would — Ollie is listening and handles everything else behind the scenes.</p>
+
+        <!-- Traffic light -->
+        <div class="rules-grid-2" style="margin:14px 0;">
+          <div class="rules-card rules-card-dark" style="border-color:rgba(239,68,68,0.4);">
+            <div class="rules-card-icon">🔴</div>
+            <div class="rules-card-title" style="color:#f87171;">Posted — Open</div>
+            <div class="rules-card-body">Task is available and waiting to be claimed. Anyone can pick it up.</div>
+          </div>
+          <div class="rules-card rules-card-dark" style="border-color:rgba(251,191,36,0.4);">
+            <div class="rules-card-icon">🟡</div>
+            <div class="rules-card-title" style="color:#fbbf24;">In Progress — Claimed</div>
+            <div class="rules-card-body">Someone has it. Ollie updates the status automatically the moment a claim is made.</div>
+          </div>
+          <div class="rules-card rules-card-dark" style="border-color:rgba(74,222,128,0.4);">
+            <div class="rules-card-icon">🟢</div>
+            <div class="rules-card-title" style="color:#4ade80;">Complete — XP Earned</div>
+            <div class="rules-card-body">Done and confirmed. Points are attributed to you automatically.</div>
+          </div>
+          <div class="rules-card rules-card-dark" style="border-color:rgba(156,163,175,0.3);">
+            <div class="rules-card-icon">🆖</div>
+            <div class="rules-card-title" style="color:var(--text-dim);">Abandoned — Reposted</div>
+            <div class="rules-card-body">Task sat too long unclaimed. Ollie reposts it with its accumulated point value — no penalty, just a fresh opportunity.</div>
+          </div>
+        </div>
+
+        <!-- Claiming -->
+        <div class="rules-section-header" style="margin-top:18px; margin-bottom:8px;">
+          <span class="rules-icon">🗣️</span>
+          <h2>Claiming a Task</h2>
+        </div>
+        <p>Just type in the channel that you're on it. Ollie understands natural language — you don't need a specific phrase:</p>
+        <div class="rules-callout" style="font-family:'Courier New',monospace; font-size:0.82rem; line-height:2;">
+          <span style="color:#f87171;">●</span> &nbsp;"I've got zone 1"<br>
+          <span style="color:#f87171;">●</span> &nbsp;"Starting zones 1 and 2"<br>
+          <span style="color:#f87171;">●</span> &nbsp;"On it"<br>
+          <span style="color:#f87171;">●</span> &nbsp;"I have 1 and 2, Marcus has 3 and 4"
+        </div>
+        <p style="margin-top:10px;">Ollie reads your message, figures out which task you mean, flips it to 🟡, and logs the time — all silently. The channel stays clean. You just work.</p>
+
+        <!-- Completing -->
+        <div class="rules-section-header" style="margin-top:18px; margin-bottom:8px;">
+          <span class="rules-icon">🏆</span>
+          <h2>Marking Complete</h2>
+        </div>
+        <p>Same deal — just say so in the channel:</p>
+        <div class="rules-callout" style="font-family:'Courier New',monospace; font-size:0.82rem; line-height:2;">
+          <span style="color:#4ade80;">●</span> &nbsp;"Done with zone 1"<br>
+          <span style="color:#4ade80;">●</span> &nbsp;"Zones 3 and 4 are finished"<br>
+          <span style="color:#4ade80;">●</span> &nbsp;"Finished"
+        </div>
+        <p style="margin-top:10px;">Ollie resolves which tasks you completed, moves them to 🟢, and attributes the points to you. <strong>The points are yours the moment you confirm.</strong></p>
+
+        <div class="rules-callout" style="margin-top:14px;">
+          <strong>Unclaimed tasks accumulate value.</strong> If a task goes through multiple postings without being claimed, its point value carries forward and grows. Not picking something up isn't a penalty — it's just an opportunity that's still on the table, worth a little more each time.
+        </div>
+
+        <div class="rules-callout" style="margin-top:10px;">
           While some tasks are required for regulatory reasons, the vast majority are voluntary. You choose what to pick up. Over time, the board creates an honest, visible record of who steps up — no hidden monitoring, no score-based discipline. Just transparency the team can see and respond to on its own.
         </div>
       </div>
@@ -1565,11 +1859,25 @@ body {
         </div>
         <p>For too long, leaders alone defined what good work looked like and decided how — or whether — to reward it. There was no clear scoreboard, no transparent rules, and no reliable way to connect effort to reward.</p>
         <p><strong>OllieBoard changes that.</strong> The rules are published upfront. Point values are visible. The payout formula is fixed. No one can change the rules after the work is done.</p>
+        <p>We know meritocracy isn't always the reality. Systems are imperfect. Workplaces are complicated. People get overlooked. <strong>But meritocracy is worth aspiring to.</strong> It's worth building toward — deliberately, transparently, one task at a time. OllieBoard is that attempt, made concrete. Not a promise that the world is fair. A commitment to building something in this store that is.</p>
         <p>Most importantly, we believe the people doing the work deserve a real voice and a fair, objective mechanism in defining what meritocracy actually means in their store.</p>
         <p>OllieBoard isn't surveillance disguised as a game. It's a transparent tool for mutual success, wrapped in the most engaging format we know: a game. When the rules are fair, visible, and shaped with input from the team, good work becomes its own reward — and everyone wins when the team performs at its best.</p>
         <div class="rules-callout rules-callout-gold">
           <strong>Honest effort. Clear rewards. Shared success.</strong><br>
           This is how we build better businesses — together.
+        </div>
+      </div>
+
+      <!-- A LITTLE FUN -->
+      <div class="rules-section rules-closer" style="border-top:1px solid rgba(201,168,76,0.15); padding-top:24px;">
+        <div class="rules-section-header">
+          <span class="rules-icon">🎵</span>
+          <h2>One More Thing</h2>
+        </div>
+        <p>We hope OllieBoard brings a little fun to your day. Work is work — but it doesn't have to be only that.</p>
+        <p>Down the road, the team will be able to choose apps to add to the store's OllieBoard environment. A jukebox. Games. Other tools the crew decides would make the shift better. <strong>The team gets to decide what goes in — the same way the team decides what meritocracy means.</strong></p>
+        <div class="rules-callout" style="margin-top:12px;">
+          We're just getting started. Thanks for playing.
         </div>
       </div>
 
@@ -1836,48 +2144,48 @@ const EMPLOYEES = [
    - release_date: ISO date string (formatted on display) or null
    - release_label: free text fallback ("Spring 2025") or null
    - entity: OllieBoard entity ID — joins to EMPLOYEES.completions
-   - pts_per_completion, star_threshold: game mechanics
+   - xp_per_completion, star_threshold: game mechanics
    Board positions (rot, grid row/col) are in BOARD_LAYOUT below,
    keeping game config separate from display config.
 ════════════════════════════════════════════════════════════════════ */
 const SPACE_CONFIG = [
   {
     id:1,  entity:"ollieboard.oa_space_1",
-    label:"Windsor Ave",      active:true,
+    label:"Windsor Avenue",      subtitle:"Sanitization",  active:true,
     release_date:null,        release_label:null,
-    pts_per_completion:10,    star_threshold:5,
+    xp_per_completion:10,    star_threshold:5,
     color:"#896653",
     desc:"Sanitization — all surfaces cleaned and logged per shift protocol."
   },
   {
     id:3,  entity:"ollieboard.oa_space_3",
-    label:"Baltic Ave",       active:false,
+    label:"Regan Street",       active:false,
     release_date:"2025-05-12", release_label:null,
-    pts_per_completion:10,    star_threshold:5,
+    xp_per_completion:10,    star_threshold:5,
     color:"#896653",
     desc:"Temperature logs — accurate readings maintained every shift."
   },
   {
     id:6,  entity:"ollieboard.oa_space_6",
-    label:"Oriental Ave",     active:false,
+    label:"Bellevue Avenue",     active:false,
     release_date:null,        release_label:"Spring 2025",
-    pts_per_completion:10,    star_threshold:5,
+    xp_per_completion:10,    star_threshold:5,
     color:"#c6f4ea",
     desc:"FIFO rotation applied across all storage areas."
   },
   {
     id:8,  entity:"ollieboard.oa_space_8",
-    label:"Vermont Ave",      active:false,
+    label:"Progress Avenue",      active:false,
     release_date:null,        release_label:"Spring 2025",
-    pts_per_completion:10,    star_threshold:5,
+    xp_per_completion:10,    star_threshold:5,
     color:"#c6f4ea",
     desc:"All products correctly date-labeled with use-by information."
   },
   {
     id:9,  entity:"ollieboard.oa_space_9",
-    label:"Connecticut Ave",  active:false,
+    label:"Robert Road",  active:false,
     release_date:null,        release_label:"Summer 2025",
-    pts_per_completion:10,    star_threshold:5,
+    xp_per_completion:10,    star_threshold:5,
     color:"#c6f4ea",
     desc:"Toppings meet portioning standards every shift."
   },
@@ -1885,135 +2193,135 @@ const SPACE_CONFIG = [
     id:11, entity:"ollieboard.oa_space_11",
     label:"St. Charles Pl",   active:false,
     release_date:"2025-06-02", release_label:null,
-    pts_per_completion:15,    star_threshold:4,
+    xp_per_completion:15,    star_threshold:4,
     color:"#a42c74",
     desc:"Dough properly balled, labeled, and proofed each shift."
   },
   {
     id:13, entity:"ollieboard.oa_space_13",
-    label:"States Ave",       active:false,
+    label:"Vassar Street",       active:false,
     release_date:null,        release_label:"Summer 2025",
-    pts_per_completion:15,    star_threshold:4,
+    xp_per_completion:15,    star_threshold:4,
     color:"#a42c74",
     desc:"All toppings prepped to spec and meeting freshness standards."
   },
   {
     id:14, entity:"ollieboard.oa_space_14",
-    label:"Virginia Ave",     active:false,
+    label:"Old Town Road",     active:false,
     release_date:null,        release_label:"Summer 2025",
-    pts_per_completion:15,    star_threshold:4,
+    xp_per_completion:15,    star_threshold:4,
     color:"#a42c74",
     desc:"Sauce applied correctly with right ladle and spread."
   },
   {
     id:16, entity:"ollieboard.oa_space_16",
-    label:"St. James Place",  active:false,
+    label:"Village Street",  active:false,
     release_date:"2025-06-16", release_label:null,
-    pts_per_completion:15,    star_threshold:4,
+    xp_per_completion:15,    star_threshold:4,
     color:"#e09252",
     desc:"Oven temperature and bake times calibrated and documented."
   },
   {
     id:18, entity:"ollieboard.oa_space_18",
-    label:"Tennessee Ave",    active:false,
+    label:"Westland Road",    active:false,
     release_date:null,        release_label:"Fall 2025",
-    pts_per_completion:15,    star_threshold:4,
+    xp_per_completion:15,    star_threshold:4,
     color:"#e09252",
     desc:"Pizzas enter and exit the oven on schedule."
   },
   {
     id:19, entity:"ollieboard.oa_space_19",
-    label:"New York Ave",     active:false,
+    label:"Crescent Circle",     active:false,
     release_date:null,        release_label:"Fall 2025",
-    pts_per_completion:15,    star_threshold:4,
+    xp_per_completion:15,    star_threshold:4,
     color:"#e09252",
     desc:"Sanitation compliance — hand-sink availability and setup."
   },
   {
     id:21, entity:"ollieboard.oa_space_21",
-    label:"Kentucky Ave",     active:false,
+    label:"Village Street",     active:false,
     release_date:"2025-07-07", release_label:null,
-    pts_per_completion:20,    star_threshold:3,
+    xp_per_completion:20,    star_threshold:3,
     color:"#ed1518",
     desc:"Pizzas cut correctly using rocker blade technique."
   },
   {
     id:23, entity:"ollieboard.oa_space_23",
-    label:"Indiana Ave",      active:false,
+    label:"Butcher Road",      active:false,
     release_date:null,        release_label:"Fall 2025",
-    pts_per_completion:20,    star_threshold:3,
+    xp_per_completion:20,    star_threshold:3,
     color:"#ed1518",
     desc:"Boxes assembled correctly, free of grease transfer."
   },
   {
     id:24, entity:"ollieboard.oa_space_24",
-    label:"Illinois Ave",     active:false,
+    label:"West Road",     active:false,
     release_date:null,        release_label:"Fall 2025",
-    pts_per_completion:20,    star_threshold:3,
+    xp_per_completion:20,    star_threshold:3,
     color:"#ed1518",
     desc:"Box presentation — proper folding, label placement, centering."
   },
   {
     id:26, entity:"ollieboard.oa_space_26",
-    label:"Atlantic Ave",     active:false,
+    label:"Moser Drive",     active:false,
     release_date:"2025-08-04", release_label:null,
-    pts_per_completion:20,    star_threshold:3,
+    xp_per_completion:20,    star_threshold:3,
     color:"#fcf81d",
     desc:"Orders made to spec — correct toppings, sizes, crust types."
   },
   {
     id:27, entity:"ollieboard.oa_space_27",
-    label:"Ventnor Ave",      active:false,
+    label:"Charter Road",      active:false,
     release_date:null,        release_label:"Winter 2025",
-    pts_per_completion:20,    star_threshold:3,
+    xp_per_completion:20,    star_threshold:3,
     color:"#fcf81d",
     desc:"Delivery time from order to door meets windows."
   },
   {
     id:29, entity:"ollieboard.oa_space_29",
-    label:"Marvin Gardens",   active:false,
+    label:"Orchard Street",   active:false,
     release_date:null,        release_label:"Winter 2025",
-    pts_per_completion:20,    star_threshold:3,
+    xp_per_completion:20,    star_threshold:3,
     color:"#fcf81d",
     desc:"Carry-out orders ready within promised time windows."
   },
   {
     id:31, entity:"ollieboard.oa_space_31",
-    label:"Pacific Ave",      active:false,
+    label:"Fairview Avenue",      active:false,
     release_date:"2025-09-01", release_label:null,
-    pts_per_completion:30,    star_threshold:3,
+    xp_per_completion:30,    star_threshold:3,
     color:"#3a9e58",
     desc:"Customer satisfaction scores aggregated and reviewed."
   },
   {
     id:32, entity:"ollieboard.oa_space_32",
-    label:"NC Avenue",        active:false,
+    label:"Davis Avenue",        active:false,
     release_date:null,        release_label:"Winter 2025",
-    pts_per_completion:30,    star_threshold:3,
+    xp_per_completion:30,    star_threshold:3,
     color:"#3a9e58",
     desc:"Full team in proper uniform. Name tags required every shift."
   },
   {
     id:34, entity:"ollieboard.oa_space_34",
-    label:"Penn Ave",         active:false,
+    label:"Grant Street",         active:false,
     release_date:null,        release_label:"Winter 2025",
-    pts_per_completion:30,    star_threshold:3,
+    xp_per_completion:30,    star_threshold:3,
     color:"#3a9e58",
     desc:"Cleanliness across all zones — lobby, makeline, oven, BOH."
   },
   {
     id:37, entity:"ollieboard.oa_space_37",
-    label:"Park Place",       active:false,
+    label:"Main Street",       active:false,
     release_date:null,        release_label:"2026",
-    pts_per_completion:40,    star_threshold:2,
+    xp_per_completion:40,    star_threshold:2,
     color:"#0a18a3",
     desc:"Full safety walkthrough — exits, first aid, hazard compliance."
   },
   {
     id:39, entity:"ollieboard.oa_space_39",
-    label:"Boardwalk",        active:false,
+    label:"Park Street",        active:false,
     release_date:null,        release_label:"2026",
-    pts_per_completion:40,    star_threshold:2,
+    xp_per_completion:40,    star_threshold:2,
     color:"#0a18a3",
     desc:"Manager OA score — leadership, compliance docs, findings."
   }
@@ -2098,7 +2406,7 @@ function totalCompletions(spaceId) {
   return EMPLOYEES.reduce((sum, emp) => sum + completionCount(emp, sc.entity), 0);
 }
 
-/* ── Total points earned for a space (all employees) ── */
+/* ── Total xp earned for a space (all employees) ── */
 function totalPointsEarned(spaceId) {
   const sc = SPACE_BY_ID[spaceId];
   if (!sc) return 0;
@@ -2181,32 +2489,32 @@ const BOARD_LAYOUT = [
   // BOTTOM ROW (rot:0)
   {id:0,  type:'corner',   rot:0,   icon:'🚂', label:'GO'},
   {id:1,  type:'property', rot:0  },
-  {id:2,  type:'chest',    rot:0,   label:'Community Chest'},
+  {id:2,  type:'chest',    rot:0,   label:'Community Time Bank'},
   {id:3,  type:'property', rot:0  },
-  {id:4,  type:'tax',      rot:0,   label:'Income Tax'},
-  {id:5,  type:'railroad', rot:0,   label:'Reading Railroad'},
+  {id:4,  type:'tax',      rot:0,   label:'Pizza Make / Remake #1'},
+  {id:5,  type:'railroad', rot:0,   label:'Pizza Make / Remake #2'},
   {id:6,  type:'property', rot:0  },
-  {id:7,  type:'chance',   rot:0,   label:'Chance'},
+  {id:7,  type:'chance',   rot:0,   label:'Opportunity'},
   {id:8,  type:'property', rot:0  },
   {id:9,  type:'property', rot:0  },
   {id:10, type:'corner',   rot:0,   icon:'⛓️', label:'Jail / Visiting'},
   // LEFT COL (rot:-90)
   {id:11, type:'property', rot:-90 },
-  {id:12, type:'utility',  rot:-90, label:'Electric Company'},
+  {id:12, type:'utility',  rot:-90, label:'Pizza Make / Remake #3'},
   {id:13, type:'property', rot:-90 },
   {id:14, type:'property', rot:-90 },
-  {id:15, type:'railroad', rot:-90, label:'Penn Railroad'},
+  {id:15, type:'railroad', rot:-90, label:'Pizza Make / Remake #4'},
   {id:16, type:'property', rot:-90 },
-  {id:17, type:'chest',    rot:-90, label:'Community Chest'},
+  {id:17, type:'chest',    rot:-90, label:'Community Time Bank'},
   {id:18, type:'property', rot:-90 },
   {id:19, type:'property', rot:-90 },
   {id:20, type:'corner',   rot:-90, icon:'🅿️', label:'Free Parking'},
   // TOP ROW (rot:180)
   {id:21, type:'property', rot:180 },
-  {id:22, type:'chance',   rot:180, label:'Chance'},
+  {id:22, type:'chance',   rot:180, label:'Opportunity'},
   {id:23, type:'property', rot:180 },
   {id:24, type:'property', rot:180 },
-  {id:25, type:'railroad', rot:180, label:'B&O Railroad'},
+  {id:25, type:'railroad', rot:180, label:'Pizza Cut Test #5'},
   {id:26, type:'property', rot:180 },
   {id:27, type:'property', rot:180 },
   {id:28, type:'utility',  rot:180, label:'Water Works'},
@@ -2215,12 +2523,12 @@ const BOARD_LAYOUT = [
   // RIGHT COL (rot:90)
   {id:31, type:'property', rot:90  },
   {id:32, type:'property', rot:90  },
-  {id:33, type:'chest',    rot:90,  label:'Community Chest'},
+  {id:33, type:'chest',    rot:90,  label:'Community Time Bank'},
   {id:34, type:'property', rot:90  },
-  {id:35, type:'railroad', rot:90,  label:'Short Line RR'},
-  {id:36, type:'chance',   rot:90,  label:'Chance'},
+  {id:35, type:'railroad', rot:90,  label:'Pizza Make / Remake #6'},
+  {id:36, type:'chance',   rot:90,  label:'Opportunity'},
   {id:37, type:'property', rot:90  },
-  {id:38, type:'tax',      rot:90,  label:'Luxury Tax'},
+  {id:38, type:'tax',      rot:90,  label:'Pizza Make / Remake #7'},
   {id:39, type:'property', rot:90  },
 ];
 
@@ -2241,8 +2549,8 @@ const DONE = new Set(
 );
 
 const TYPE_LABELS = {
-  property:'OA Task', railroad:'Railroad Bonus', utility:'Utility Bonus',
-  chest:'Community Chest', chance:'Chance', tax:'Tax Space',
+  property:'OA Task', railroad:'Pizza Great Make / Remake', utility:'Pizza Great Make / Remake',
+  chest:'Community Time Bank', chance:'Opportunity', tax:'Pizza Great Make / Remake',
 };
 
 function gridPos(id) {
@@ -2294,11 +2602,11 @@ function buildCorner(s) {
 
    1. UNRELEASED (US-04): active=false
       Band dimmed, name muted, release date on line 2.
-      No dots, no stars, no pts.
+      No dots, no stars, no xp.
 
    2. ACTIVE — TEAM VIEW (US-05 + US-06):
       Full band with 4 dots, name, then MAYOR block (avatar + label),
-      total team PTS EARNED at bottom.
+      total team XP EARNED at bottom.
 
    Mayor is computed via getMayor(spaceId) → spaceLeaderboard(),
    tiebreak = earliest start_date (US-07).
@@ -2355,7 +2663,7 @@ function buildProperty(s) {
   /* ══════════════════════════════════════════════
      US-05 + US-06 — ACTIVE TILE
      Branches on activeView:
-       'team'  → mayor + team PTS EARNED  (US-06)
+       'team'  → mayor + team XP EARNED  (US-06)
        emp.id  → personal dots + stars    (US-08)
   ══════════════════════════════════════════════ */
   const hasStar = DONE.has(s.id);
@@ -2396,6 +2704,14 @@ function buildProperty(s) {
   const name = document.createElement('div');
   name.className = 'prop-name';
   name.textContent = (sc.label || s.label || '').toUpperCase();
+
+  /* ── Subtitle (e.g. "Sanitization") — same style as pnu-date ── */
+  if (sc.subtitle) {
+    const sub = document.createElement('div');
+    sub.className = 'prop-subtitle';
+    sub.textContent = sc.subtitle.toUpperCase();
+    name.appendChild(sub);
+  }
 
   /* ── Middle row: Mayor (team) or Stars (individual) ── */
   const middleRow = document.createElement('div');
@@ -2443,22 +2759,22 @@ function buildProperty(s) {
     }
   }
 
-  /* ── PTS row: team = total earned, individual = personal earned ── */
-  const pts = document.createElement('div');
-  pts.className = 'prop-pts';
+  /* ── XP row: team = total earned, individual = personal earned ── */
+  const xp = document.createElement('div');
+  xp.className = 'prop-pts';
   if (viewEmp) {
     const personalPts = empCount * (sc.pts_per_completion || 0);
-    pts.textContent = personalPts > 0
-      ? `${personalPts} PTS EARNED` : `${sc.pts_per_completion || 0} PTS`;
+    xp.textContent = personalPts > 0
+      ? `${personalPts} XP EARNED` : `${sc.pts_per_completion || 0} XP`;
   } else {
-    pts.textContent = teamPts > 0
-      ? `${teamPts} PTS EARNED` : `${sc.pts_per_completion || 0} PTS`;
+    xp.textContent = teamPts > 0
+      ? `${teamPts} XP EARNED` : `${sc.pts_per_completion || 0} XP`;
   }
 
   inner.appendChild(band);
   inner.appendChild(name);
   inner.appendChild(middleRow);
-  inner.appendChild(pts);
+  inner.appendChild(xp);
   div.appendChild(inner);
   div.addEventListener('click', () => openPanel(s));
   return div;
@@ -2480,12 +2796,12 @@ function buildPlain(s) {
   name.className = 'plain-name';
   name.textContent = (s.label || '').toUpperCase();
 
-  const pts = document.createElement('div');
-  pts.className = 'plain-pts';
-  pts.textContent = (s.pts_per_completion || s.pts || 0) > 0
-    ? (s.pts_per_completion || s.pts) + ' PTS' : '';
+  const xp = document.createElement('div');
+  xp.className = 'plain-pts';
+  xp.textContent = (s.pts_per_completion || s.pts || 0) > 0
+    ? (s.pts_per_completion || s.pts) + ' XP' : '';
 
-  inner.appendChild(name); inner.appendChild(pts);
+  inner.appendChild(name); inner.appendChild(xp);
   div.appendChild(inner);
   div.addEventListener('click', () => openPanel(s));
   return div;
@@ -2503,19 +2819,59 @@ function applyRotations() {
     } else if (rot === 180) {
       inner.style.cssText = `position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:stretch;transform:rotate(180deg);`;
     } else {
+      /* Side spaces: swap width/height so content fills the rotated cell.
+         With equal grid cells, cw === ch so this is mainly for the rotate. */
       const adj = rot === -90 ? 90 : -90;
-      inner.style.cssText = `position:absolute;top:50%;left:50%;width:${ch}px;height:${cw}px;display:flex;flex-direction:column;align-items:stretch;transform:translate(-50%,-50%) rotate(${adj}deg);`;
+      const w = Math.max(cw, ch);
+      const h = Math.min(cw, ch);
+      inner.style.cssText = `position:absolute;top:50%;left:50%;width:${w}px;height:${h}px;display:flex;flex-direction:column;align-items:stretch;transform:translate(-50%,-50%) rotate(${adj}deg);`;
     }
   });
 }
 
+/* ── Panel swap — close→reopen animation when switching between items ── */
+function swapPanel(populateFn) {
+  const panel    = document.getElementById('sidePanel');
+  const bodyEl   = document.getElementById('panelBody');
+  const headerEl = panel.querySelector('.panel-header-text');
+
+  if (panel.classList.contains('open')) {
+    /* Already open — flash the header and animate the body content */
+    if (headerEl) {
+      headerEl.style.transition = 'opacity 0.12s ease';
+      headerEl.style.opacity = '0';
+    }
+    bodyEl.style.transition = 'opacity 0.1s ease';
+    bodyEl.style.opacity = '0';
+
+    setTimeout(() => {
+      populateFn();
+      if (headerEl) {
+        headerEl.style.opacity = '1';
+      }
+      bodyEl.style.opacity = '1';
+      bodyEl.classList.remove('swapping');
+      void bodyEl.offsetWidth; /* force reflow */
+      bodyEl.classList.add('swapping');
+    }, 110);
+  } else {
+    /* Not open — just populate and slide in normally */
+    populateFn();
+    panel.classList.add('open');
+  }
+}
+
 /* ── PANEL — US-08 (individual) + US-10 (team leaderboard) ──────── */
 function openPanel(s) {
-  haptic('success'); /* space opened — positive discovery */
+  haptic('success');
   document.querySelectorAll('.space.active-sel').forEach(el => el.classList.remove('active-sel'));
   const el = document.querySelector(`.space[data-id="${s.id}"]`);
   if (el) el.classList.add('active-sel');
 
+  swapPanel(() => { _populateSpacePanel(s); });
+}
+
+function _populateSpacePanel(s) {
   const sc       = SPACE_BY_ID[s.id] || s;
   const entity   = sc.entity || `ollieboard.oa_space_${s.id}`;
   const isActive = !!sc.active;
@@ -2550,20 +2906,46 @@ function openPanel(s) {
       <div class="detail-value">${sc.desc || '—'}</div>
     </div><div class="divider"></div>`;
 
-  /* ── Shared: entity chip ── */
+  /* ── Shared: entity chip + zone dropdown ── */
+  const spaceZoneKey  = `space_${s.id}`;
+  const spaceZoneCurr = CELL_ZONE_MAP[spaceZoneKey] || '';
   const entityHTML = `
     <div class="detail-row">
       <div class="detail-label">OllieBoard Entity</div>
       <div class="entity-chip">
         <span class="entity-dot ${isActive ? 'live' : ''}"></span>${entity}
       </div>
+    </div>
+    <div class="detail-row" style="margin-top:8px;">
+      <div class="detail-label">Zone</div>
+      <select id="spaceZoneSelect" data-space="${s.id}" style="
+        width:100%; margin-top:6px; padding:8px 10px;
+        background:var(--surface2); border:1.5px solid var(--gold-dim);
+        border-radius:8px; color:var(--text); font-family:inherit;
+        font-size:0.78rem; outline:none; cursor:pointer;
+        appearance:none; -webkit-appearance:none;">
+        ${buildZoneDropdownHTML(spaceZoneCurr)}
+      </select>
+    </div>
+    <div id="spaceZoneSaved" style="
+      display:none; margin-top:8px; padding:8px 12px;
+      background:rgba(74,222,128,0.1); border:1px solid rgba(74,222,128,0.4);
+      border-radius:6px; font-size:0.72rem; color:#4ade80; font-weight:700;">
+      ✓ Zone assignment saved
     </div>`;
 
   if (!isActive) {
     /* US-11: unreleased space — minimal panel */
     document.getElementById('panelBody').innerHTML =
       categoryHTML + descHTML + entityHTML;
-    document.getElementById('sidePanel').classList.add('open');
+    /* Wire zone save for unreleased spaces */
+    const spaceSelU = document.getElementById('spaceZoneSelect');
+    if (spaceSelU) spaceSelU.addEventListener('change', () => {
+      haptic('selection');
+      CELL_ZONE_MAP[`space_${s.id}`] = spaceSelU.value;
+      const sv = document.getElementById('spaceZoneSaved');
+      if (sv) { sv.style.display = 'block'; setTimeout(() => { sv.style.display = 'none'; }, 2000); }
+    });
     return;
   }
 
@@ -2637,7 +3019,7 @@ function openPanel(s) {
         <div class="points-icon">🏆</div>
         <div>
           <div class="points-num">${ptTotal}</div>
-          <div class="points-label">Total Points Earned Since Last OA</div>
+          <div class="points-label">Total XP Earned Since Last OA</div>
         </div>
       </div>
       <div class="panel-tabs">
@@ -2738,7 +3120,14 @@ function openPanel(s) {
     renderHistPage();
   }
 
-  document.getElementById('sidePanel').classList.add('open');
+  /* Wire zone save for active spaces */
+  const spaceSel = document.getElementById('spaceZoneSelect');
+  if (spaceSel) spaceSel.addEventListener('change', () => {
+    haptic('selection');
+    CELL_ZONE_MAP[`space_${s.id}`] = spaceSel.value;
+    const sv = document.getElementById('spaceZoneSaved');
+    if (sv) { sv.style.display = 'block'; setTimeout(() => { sv.style.display = 'none'; }, 2000); }
+  });
 }
 
 /* ── Tab switching ── */
@@ -3811,21 +4200,288 @@ SPACES.forEach(s => {
 /* Build employee pills in toggle bar */
 buildEmpPills();
 
-/* CENTER GRID CELLS */
-for (let gr = 2; gr <= 10; gr++) {
-  for (let gc = 2; gc <= 10; gc++) {
-    const cx = gc - 6; const cy = 6 - gr;
-    const cell = document.createElement('div');
-    cell.className = `center-cell cell-r${gr}-c${gc}`;
-    cell.dataset.cx = cx; cell.dataset.cy = cy;
-    cell.style.gridRow = gr; cell.style.gridColumn = gc;
-    cell.title = `(${cx}, ${cy})`;
-    /* Touch: add .glow on contact, remove on release/cancel */
-    cell.addEventListener('touchstart', () => { haptic('selection'); cell.classList.add('glow'); },
-      { passive: true });
-    cell.addEventListener('touchend',    () => cell.classList.remove('glow'));
-    cell.addEventListener('touchcancel', () => cell.classList.remove('glow'));
-    board.appendChild(cell);
+/* ════════════════════════════════════════════════════════════════════
+   OLLIE-CELL — Lit Web Component for center grid squares
+   
+   Each cell is individually addressable as ollie-cell-X-Y
+   where X=col (1-9 left→right) and Y=row (1-9 top→bottom).
+   
+   Future: each cell will have a corresponding HA entity
+   (ollieboard.cell_X_Y) for employee presence and task verification.
+   
+   Coordinates follow database convention: (1,1) = top-left,
+   (9,9) = bottom-right.
+════════════════════════════════════════════════════════════════════ */
+
+/* ── Zone config — all available store zones ── */
+const STORE_ZONES = {
+  'Back of House (BOH)': [
+    { id: 'boh_3c_sink',         label: '3C Sink' },
+    { id: 'boh_dry_storage',     label: 'Dry Storage' },
+    { id: 'boh_office_safety',   label: 'Office / Safety' },
+    { id: 'boh_safe',            label: 'Safe' },
+    { id: 'boh_rear_access',     label: 'Rear Access' },
+  ],
+  'Production Area (PROD)': [
+    { id: 'prod_press_table',         label: 'Press Table' },
+    { id: 'prod_handwash_sink_one',   label: 'Handwash Sink 1' },
+    { id: 'prod_handwash_sink_two',   label: 'Handwash Sink 2' },
+    { id: 'prod_makeline',            label: 'Makeline' },
+    { id: 'prod_oven',                label: 'Oven' },
+    { id: 'prod_cut_table',           label: 'Cut Table' },
+    { id: 'prod_walkin_cooler',       label: 'Walk-in Cooler' },
+  ],
+  'Front of House (FOH)': [
+    { id: 'foh_bathroom',          label: 'Bathroom' },
+    { id: 'foh_beverage_cooler',   label: 'Beverage Cooler' },
+    { id: 'foh_beverage_storage',  label: 'Beverage Storage' },
+    { id: 'foh_counter',           label: 'Counter' },
+    { id: 'foh_front_access',      label: 'Front Access' },
+    { id: 'foh_lobby',             label: 'Lobby' },
+    { id: 'foh_driver_staging',    label: 'Driver Staging' },
+    { id: 'foh_dining',            label: 'Dining' },
+  ],
+};
+
+/* Persist zone assignments across sessions (in-memory for now;
+   future: sync to HA entity attributes) */
+const CELL_ZONE_MAP = {};
+
+/* ── Build zone dropdown HTML ── */
+function buildZoneDropdownHTML(currentZone = '') {
+  let opts = `<option value="">— Unassigned —</option>`;
+  for (const [group, zones] of Object.entries(STORE_ZONES)) {
+    opts += `<optgroup label="${group}">`;
+    for (const z of zones) {
+      const sel = currentZone === z.id ? ' selected' : '';
+      opts += `<option value="${z.id}"${sel}>${z.label}</option>`;
+    }
+    opts += `</optgroup>`;
+  }
+  return opts;
+}
+
+/* ── Open cell panel ── */
+function openCellPanel(x, y) {
+  haptic('success');
+  const cellId     = `${x},${y}`;
+  const currentZone = CELL_ZONE_MAP[cellId] || '';
+
+  /* Find zone label for display */
+  let zoneLabel = '';
+  for (const zones of Object.values(STORE_ZONES)) {
+    const found = zones.find(z => z.id === currentZone);
+    if (found) { zoneLabel = found.label; break; }
+  }
+
+  swapPanel(() => {
+    document.querySelectorAll('.space.active-sel').forEach(el => el.classList.remove('active-sel'));
+
+    const colorBar  = document.getElementById('panelColorBar');
+    const titleEl   = document.getElementById('panelTitle');
+    const typeEl    = document.getElementById('panelType');
+    const statusEl  = document.getElementById('panelStatus');
+    const bodyEl    = document.getElementById('panelBody');
+
+    colorBar.style.background = 'rgba(201,168,76,0.6)';
+    titleEl.textContent  = `Cell (${x}, ${y})`;
+    typeEl.textContent   = 'Store Grid · Interior Position';
+    statusEl.innerHTML   = `<span class="status-badge passing"><span class="status-dot"></span>Addressable</span>`;
+
+    bodyEl.innerHTML = `
+      <!-- Zone assignment — ABOVE the divider -->
+      <div class="detail-row">
+        <div class="detail-label">Zone Assignment</div>
+        <select id="cellZoneSelect" style="
+          width:100%; margin-top:6px; padding:8px 10px;
+          background:var(--surface2); border:1.5px solid var(--gold-dim);
+          border-radius:8px; color:var(--text); font-family:inherit;
+          font-size:0.78rem; outline:none; cursor:pointer;
+          appearance:none; -webkit-appearance:none;">
+          ${buildZoneDropdownHTML(currentZone)}
+        </select>
+      </div>
+      <div id="cellZoneSaved" style="
+        display:none; margin-top:8px; padding:8px 12px;
+        background:rgba(74,222,128,0.1); border:1px solid rgba(74,222,128,0.4);
+        border-radius:6px; font-size:0.72rem; color:#4ade80; font-weight:700;">
+        ✓ Zone assignment saved
+      </div>
+
+      <!-- Divider -->
+      <div style="height:1px;background:rgba(201,168,76,0.15);margin:16px 0;"></div>
+
+      <!-- Details below divider -->
+      <div class="detail-row">
+        <div class="detail-label">XY Coordinate</div>
+        <div class="detail-value" style="font-family:'Courier New',monospace;font-size:1.1rem;color:var(--gold);font-weight:900;">(${x}, ${y})</div>
+      </div>
+      <div class="detail-row" style="margin-top:6px;">
+        <div class="detail-label">Grid Position</div>
+        <div class="detail-value" style="font-size:0.78rem;">Column ${x} · Row ${y}</div>
+      </div>
+      <div class="detail-row" style="margin-top:6px;">
+        <div class="detail-label">OllieBoard OS Entity <span style="color:var(--gold-dim);font-size:0.7em;">(future)</span></div>
+        <div class="detail-value" style="font-family:'Courier New',monospace;font-size:0.72rem;color:var(--text-dim);">ollieboard.cell_${x}_${y}</div>
+      </div>
+      <div class="detail-row" style="margin-top:14px;">
+        <div class="detail-label">Presence <span style="color:var(--gold-dim);font-size:0.7em;">(future)</span></div>
+        <div class="detail-value" style="font-size:0.78rem;color:var(--text-dim);">Employee presence detection via IoT sensors.</div>
+      </div>
+      <div class="detail-row" style="margin-top:10px;">
+        <div class="detail-label">Task Verification <span style="color:var(--gold-dim);font-size:0.7em;">(future)</span></div>
+        <div class="detail-value" style="font-size:0.78rem;color:var(--text-dim);">Cell lights up when a task is active here and clears on verification.</div>
+      </div>
+    `;
+
+    /* Zone save handler */
+    const sel = document.getElementById('cellZoneSelect');
+    sel.addEventListener('change', () => {
+      haptic('selection');
+      CELL_ZONE_MAP[cellId] = sel.value;
+      const cellEl = document.querySelector(`ollie-cell[data-x="${x}"][data-y="${y}"]`);
+      if (cellEl) cellEl.setAttribute('zone', sel.value);
+      const saved = document.getElementById('cellZoneSaved');
+      saved.style.display = 'block';
+      setTimeout(() => { saved.style.display = 'none'; }, 2000);
+    });
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   OLLIE-CELL LIT COMPONENT
+════════════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════
+   OLLIE-CELL — Vanilla Custom Element with Shadow DOM
+   No CDN, no build step, fully offline-compatible.
+   Identical architecture to a Lit component — Shadow DOM,
+   observed attributes, individual HA entity path per cell.
+════════════════════════════════════════════════════════════════════ */
+class OllieCell extends HTMLElement {
+  static observedAttributes = ['x', 'y', 'zone', 'glow'];
+
+  constructor() {
+    super();
+    this._root = this.attachShadow({ mode: 'open' });
+    this._root.innerHTML = `
+      <style>
+        :host {
+          display: block;
+          width: 100%; height: 100%;
+          cursor: pointer;
+          border: 1px solid rgba(201,168,76,0.18);
+          box-sizing: border-box;
+          position: relative;
+          outline: none;
+          transition: background 0.15s, box-shadow 0.15s, border-color 0.15s;
+        }
+        :host(:hover),
+        :host([glow]) {
+          background: rgba(201,168,76,0.12);
+          box-shadow: inset 0 0 28px rgba(201,168,76,0.28),
+                      0 0 12px rgba(201,168,76,0.15);
+          border-color: rgba(201,168,76,0.6);
+          z-index: 2;
+        }
+        .label {
+          position: absolute; inset: 0;
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center; gap: 1px;
+          pointer-events: none; user-select: none;
+          opacity: 0; transition: opacity 0.15s;
+        }
+        :host(:hover) .label,
+        :host([glow]) .label { opacity: 1; }
+        .zone-name {
+          font-family: 'Inter', sans-serif;
+          font-size: clamp(0.2rem, 0.7cqw, 0.42rem);
+          font-weight: 700;
+          color: rgba(201,168,76,0.9);
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          text-align: center;
+          padding: 0 2px;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .coord {
+          font-family: 'Courier New', monospace;
+          font-size: clamp(0.2rem, 0.65cqw, 0.4rem);
+          font-weight: 700;
+          color: rgba(201,168,76,0.55);
+          letter-spacing: 0.02em;
+        }
+        /* Zone indicator dot — bottom-right when assigned */
+        .zone-dot {
+          position: absolute; bottom: 3px; right: 3px;
+          width: 5px; height: 5px; border-radius: 50%;
+          background: rgba(201,168,76,0.65);
+          display: none;
+        }
+        :host([zone]) .zone-dot { display: block; }
+      </style>
+      <div class="label">
+        <span class="zone-name"></span>
+        <span class="coord"></span>
+      </div>
+      <div class="zone-dot"></div>
+    `;
+  }
+
+  connectedCallback() {
+    this._render();
+    this.addEventListener('click',       () => { haptic('success');    openCellPanel(+this.getAttribute('x'), +this.getAttribute('y')); });
+    this.addEventListener('touchstart',  () => { haptic('selection');  this.setAttribute('glow',''); }, { passive: true });
+    this.addEventListener('touchend',    () => this.removeAttribute('glow'));
+    this.addEventListener('touchcancel', () => this.removeAttribute('glow'));
+  }
+
+  attributeChangedCallback() { this._render(); }
+
+  _render() {
+    const x    = this.getAttribute('x') || '?';
+    const y    = this.getAttribute('y') || '?';
+    const zone = this.getAttribute('zone') || '';
+
+    /* Resolve human-readable zone label */
+    let zoneLabel = '';
+    if (zone) {
+      for (const zones of Object.values(STORE_ZONES)) {
+        const found = zones.find(z => z.id === zone);
+        if (found) { zoneLabel = found.label; break; }
+      }
+    }
+
+    const zoneEl  = this._root.querySelector('.zone-name');
+    const coordEl = this._root.querySelector('.coord');
+    const dot     = this._root.querySelector('.zone-dot');
+    if (zoneEl)  zoneEl.textContent  = zoneLabel;
+    if (coordEl) coordEl.textContent = `${x},${y}`;
+    if (dot)     dot.title = zoneLabel || '';
+  }
+}
+
+if (!customElements.get('ollie-cell')) {
+  customElements.define('ollie-cell', OllieCell);
+}
+
+/* ── Mount center grid cells ── */
+{
+  const board = document.getElementById('board');
+  for (let row = 1; row <= 9; row++) {
+    for (let col = 1; col <= 9; col++) {
+      const cell = document.createElement('ollie-cell');
+      cell.setAttribute('x', col);
+      cell.setAttribute('y', row);
+      cell.setAttribute('data-x', col);
+      cell.setAttribute('data-y', row);
+      cell.style.gridRow    = row + 1;
+      cell.style.gridColumn = col + 1;
+      cell.id = `ollie-cell-${col}-${row}`;
+      board.appendChild(cell);
+    }
   }
 }
 
@@ -3879,6 +4535,244 @@ const floorEl = document.querySelector('.center-floor');
 if (floorEl) floorEl.style.backgroundImage = `url(${FLOOR_IMG_B64})`;
 
 requestAnimationFrame(() => setTimeout(showIntro, 120));
+
+/* ════════════════════════════════════════════════════════════════════
+   PHYSICAL BUILDING SYSTEM  — placeBuilding(col, row, heightPx, color)
+   ─────────────────────────────────────────────────────────────────
+   Builds a true CSS 3D cube in the center grid at (col, row) 1-9.
+
+   Cube geometry (all faces in a preserve-3d container):
+   ┌─────────┐  ← top face    : translateZ(H)
+   │  front  │  ← south face  : pivot from bottom-Y edge, rotateX(-90deg)
+   │  right  │  ← east  face  : pivot from right-X edge,  rotateY(90deg)
+   │  back   │  ← north face  : pivot from top-Y edge,    rotateX(90deg)
+   │  left   │  ← west  face  : pivot from left-X edge,   rotateY(-90deg)
+
+   Lighting simulation (Req 5 — spotlight from top-left in iso):
+     top   → lightest  (directly lit)
+     front → medium    (semi-lit, facing viewer-left)
+     right → darkest   (shadow side, facing viewer-right away from light)
+     back  → very dark (hidden, north-facing)
+     left  → dark      (mostly hidden, west-facing)
+
+   Shadow (Req 4): a flat blurred ellipse at Z=1 on the board surface.
+   Its X-offset and size scale with height so tall buildings cast
+   longer shadows toward the bottom-right.
+
+   Dynamic Height (Req 3): --bh CSS var sets Z height. The top face
+   translates to exactly that Z. Side faces scale to match.
+   ─────────────────────────────────────────────────────────────────
+   Usage: placeBuilding(col, row, heightPx, colorHex)
+   Removal: removeBuilding(col, row)
+════════════════════════════════════════════════════════════════════ */
+
+const BUILDINGS = {};
+
+/* ── Color utility: parse hex → {r,g,b} and return variants ── */
+function buildingColors(hex) {
+  const h = hex.replace('#','');
+  const r = parseInt(h.slice(0,2),16);
+  const g = parseInt(h.slice(2,4),16);
+  const b = parseInt(h.slice(4,6),16);
+  const mix = (f) => `rgb(${Math.round(r*f)},${Math.round(g*f)},${Math.round(b*f)})`;
+  return {
+    base:    hex,
+    light:   mix(1.15 > 1 ? 1 : 1.10),   /* slightly brighter — top highlight */
+    mid:     hex,                           /* base — front face */
+    dark:    mix(0.52),                     /* darker — right/east face */
+    darker:  mix(0.30),                     /* very dark — back/left faces */
+    border:  hex + 'aa',
+    glow:    hex + '55',
+  };
+}
+
+function placeBuilding(col, row, heightPx = 60, color = null) {
+  const N = 9;
+  col = Math.max(1, Math.min(N, Math.round(col)));
+  row = Math.max(1, Math.min(N, Math.round(row)));
+  heightPx = Math.max(16, Math.min(500, heightPx));
+
+  const key = `${col},${row}`;
+  if (BUILDINGS[key]) { BUILDINGS[key].remove(); delete BUILDINGS[key]; }
+
+  const centerEl = document.querySelector('.center');
+  if (!centerEl) return null;
+
+  /* ── Footprint dimensions ── */
+  const cw   = centerEl.offsetWidth  || 600;
+  const ch   = centerEl.offsetHeight || 600;
+  const cellW = cw / N;
+  const cellH = ch / N;
+  const W     = cellW * 0.78;             /* square footprint, 78% of cell */
+  const H     = heightPx;
+  const cx    = (col - 1) * cellW + cellW / 2;  /* center X of cell */
+  const cy    = (row - 1) * cellH + cellH / 2;  /* center Y of cell */
+
+  /* ── Colors ── */
+  const C = buildingColors(color || '#C9A84C');
+
+  /* ── Root wrapper — the footprint square, preserve-3d ── */
+  const wrap = document.createElement('div');
+  wrap.className = 'iso-building';
+  wrap.dataset.col = col;
+  wrap.dataset.row = row;
+  /* Position centered on the cell; Z-height is 0 (board surface) */
+  wrap.style.cssText = `
+    left:   ${cx - W/2}px;
+    top:    ${cy - W/2}px;
+    width:  ${W}px;
+    height: ${W}px;
+    transform-style: preserve-3d;
+    opacity: 0;
+    transition: opacity 0.45s ease;
+  `;
+
+  /* ── Face factory ── */
+  function face(cls, css) {
+    const d = document.createElement('div');
+    d.className = `b-face ${cls}`;
+    d.style.cssText = `position:absolute; ${css}`;
+    return d;
+  }
+
+  /* TOP FACE — translateZ(H) from the base plane
+     Lighting: lightest, with a top-left highlight glint */
+  const fTop = face('b-top', `
+    width:${W}px; height:${W}px;
+    top:0; left:0;
+    transform: translateZ(${H}px);
+    background:
+      linear-gradient(135deg,
+        rgba(255,255,255,0.22) 0%,
+        ${C.mid}          18%,
+        ${C.mid}          72%,
+        rgba(0,0,0,0.18)  100%
+      ),
+      ${C.base};
+    border: 1.5px solid ${C.border};
+    box-shadow: 0 0 ${H * 0.3}px ${C.glow};
+  `);
+
+  /* FRONT (SOUTH) FACE — pivots from the bottom edge of the footprint
+     Rotate -90° around the bottom-Y axis so it stands perpendicular.
+     In iso view this faces the viewer at a ~35° angle — semi-lit. */
+  const fFront = face('b-front', `
+    width:${W}px; height:${H}px;
+    bottom:0; left:0;
+    transform-origin: bottom center;
+    transform: rotateX(-90deg);
+    background:
+      linear-gradient(180deg,
+        ${C.mid}              0%,
+        ${C.dark}             100%
+      );
+    border-left:  1px solid ${C.border};
+    border-right: 1px solid ${C.border};
+    border-bottom:1px solid rgba(0,0,0,0.4);
+  `);
+
+  /* RIGHT (EAST) FACE — pivots from the right edge
+     In iso view this faces away from the spotlight — darkest visible side. */
+  const fRight = face('b-right', `
+    width:${W}px; height:${H}px;
+    top:0; right:0;
+    transform-origin: right center;
+    transform: rotateY(90deg);
+    background:
+      linear-gradient(180deg,
+        ${C.dark}             0%,
+        ${C.darker}           100%
+      );
+    border-top:   1px solid ${C.border};
+    border-bottom:1px solid rgba(0,0,0,0.4);
+  `);
+
+  /* BACK (NORTH) FACE — pivots from the top edge — mostly hidden in iso */
+  const fBack = face('b-back', `
+    width:${W}px; height:${H}px;
+    top:0; left:0;
+    transform-origin: top center;
+    transform: rotateX(90deg);
+    background: ${C.darker};
+  `);
+
+  /* LEFT (WEST) FACE — pivots from the left edge — hidden in iso */
+  const fLeft = face('b-left', `
+    width:${W}px; height:${H}px;
+    top:0; left:0;
+    transform-origin: left center;
+    transform: rotateY(-90deg);
+    background: ${C.darker};
+  `);
+
+  /* SHADOW — flat ellipse sitting at Z=1 (just above board surface).
+     Offset toward bottom-right, size grows with height to simulate
+     a spotlight coming from top-left at ~45°. */
+  const shadowOffset = H * 0.18;
+  const shadowW = W * 1.0 + shadowOffset * 1.4;
+  const shadowH = W * 0.55 + shadowOffset * 0.5;
+  const fShadow = face('b-shadow', `
+    width:  ${shadowW}px;
+    height: ${shadowH}px;
+    left:   ${(W - shadowW)/2 + shadowOffset * 0.6}px;
+    top:    ${(W - shadowH)/2 + shadowOffset * 0.4}px;
+    transform: translateZ(1px);
+    background: radial-gradient(ellipse,
+      rgba(0,0,0,0.60) 0%,
+      rgba(0,0,0,0.25) 45%,
+      rgba(0,0,0,0)    70%
+    );
+    border-radius: 50%;
+    filter: blur(${Math.max(4, H * 0.06)}px);
+  `);
+
+  /* ── Assemble ── */
+  wrap.appendChild(fTop);
+  wrap.appendChild(fFront);
+  wrap.appendChild(fRight);
+  wrap.appendChild(fBack);
+  wrap.appendChild(fLeft);
+  wrap.appendChild(fShadow);
+
+  centerEl.appendChild(wrap);
+  BUILDINGS[key] = wrap;
+
+  /* Fade + rise-up entry animation */
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    wrap.style.opacity = '1';
+  }));
+
+  return wrap;
+}
+
+function removeBuilding(col, row) {
+  const key = `${col},${row}`;
+  if (BUILDINGS[key]) {
+    const el = BUILDINGS[key];
+    el.style.opacity = '0';
+    setTimeout(() => { el.remove(); delete BUILDINGS[key]; }, 450);
+  }
+}
+
+// /* ── Demo buildings — richer city layout with varied heights ── */
+// (function placeDemoBuildings() {
+//   requestAnimationFrame(() => setTimeout(() => {
+
+//     /* Central district — tall gold tower */
+//     placeBuilding(5, 5, 110, '#C9A84C');
+
+//     /* Ring of buildings — varied colors + heights for depth */
+//     placeBuilding(3, 3,  62, '#3a9e58');
+//     placeBuilding(5, 3,  48, '#e09252');
+//     placeBuilding(7, 3,  78, '#ed1518');
+//     placeBuilding(3, 5,  55, '#a42c74');
+//     placeBuilding(7, 5,  70, '#0a18a3');
+//     placeBuilding(3, 7,  44, '#c6f4ea');
+//     placeBuilding(5, 7,  58, '#896653');
+//     placeBuilding(7, 7,  82, '#fcf81d');
+
+//   }, 900));
+// })();
 </script>
 </body>
 </html>
