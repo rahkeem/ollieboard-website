@@ -4206,7 +4206,7 @@ buildEmpPills();
    Each cell is individually addressable as ollie-cell-X-Y
    where X=col (1-9 left→right) and Y=row (1-9 top→bottom).
    
-   Future: each cell will have a corresponding HA entity
+   Future: each cell will have a corresponding OB Entity
    (ollieboard.cell_X_Y) for employee presence and task verification.
    
    Coordinates follow database convention: (1,1) = top-left,
@@ -4244,7 +4244,7 @@ const STORE_ZONES = {
 };
 
 /* Persist zone assignments across sessions (in-memory for now;
-   future: sync to HA entity attributes) */
+   future: sync to OB Entity attributes) */
 const CELL_ZONE_MAP = {};
 
 /* ── Build zone dropdown HTML ── */
@@ -4355,7 +4355,7 @@ function openCellPanel(x, y) {
    OLLIE-CELL — Vanilla Custom Element with Shadow DOM
    No CDN, no build step, fully offline-compatible.
    Identical architecture to a Lit component — Shadow DOM,
-   observed attributes, individual HA entity path per cell.
+   observed attributes, individual OB Entity path per cell.
 ════════════════════════════════════════════════════════════════════ */
 class OllieCell extends HTMLElement {
   static observedAttributes = ['x', 'y', 'zone', 'glow'];
